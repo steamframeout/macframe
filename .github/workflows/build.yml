@@ -181,6 +181,8 @@ jobs:
           fail-on-cache-miss: true
       - name: unpack Frame Bridge
         run: cd work/bridge && ditto -x -k FrameBridge.zip .
+      - name: crates of the guest's Rust agent (licenses.sh reads them offline; the guest job built it on Linux)
+        run: cargo fetch --locked --manifest-path guest/progress-agent/Cargo.toml
       - name: host build (MoltenVK, KosmicKrisp, libepoxy, virglrenderer, libkrun, launcher)
         env:
           FRAME_BRIDGE_APP: ${{ github.workspace }}/work/bridge/Frame Bridge.app
