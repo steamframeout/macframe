@@ -23,7 +23,8 @@ struct Rps {
 
 struct Sps {
     uint32_t id = 0, vps_id = 0, max_sub_layers = 1, chroma_format_idc = 1;
-    uint32_t width = 0, height = 0, bit_depth_luma = 8, bit_depth_chroma = 8;
+    uint32_t width = 0, height = 0;   // coded size (pic_width/height_in_luma_samples)
+    uint32_t bit_depth_luma = 8, bit_depth_chroma = 8;
     uint32_t log2_max_poc_lsb = 4;
     uint32_t log2_min_cb = 3, log2_ctb = 4, log2_min_tb = 2, log2_max_tb = 5, depth_inter = 0, depth_intra = 0;
     bool scaling_list = false, amp = false, sao = false, pcm = false, long_term = false, tmvp = false, strong_intra = false;
@@ -57,6 +58,9 @@ void write_vps(std::vector<uint8_t> &out, const StdVideoH265VideoParameterSet &v
 void write_sps(std::vector<uint8_t> &out, const StdVideoH265SequenceParameterSet &s);
 void write_pps(std::vector<uint8_t> &out, const StdVideoH265PictureParameterSet &p);
 
+// The application's SPS with the coding-tool fields of the encoder's (block sizes, transform depths, AMP, SAO, PCM,
+// temporal MVP, strong intra smoothing); true if anything changed.
+bool override_sps(StdVideoH265SequenceParameterSet &s, const Sps &enc);
 // The application's PPS with the coding tools of the encoder's; true if anything changed.
 bool override_pps(StdVideoH265PictureParameterSet &p, const Pps &enc);
 
@@ -71,6 +75,7 @@ struct PocMap {
 
 struct PicInfo {
     bool have = false;
+    bool idr = false;
     int32_t poc = 0;   // PicOrderCntVal
 };
 

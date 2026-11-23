@@ -45,6 +45,7 @@
 
 #include "venc_backend.h"
 #include "h264_rewrite.h"
+#include "h265_rewrite.h"
 
 #define LAYER_NAME "VK_LAYER_STEAMAC_video_encode"
 #define EXPORT extern "C" __attribute__((visibility("default")))
@@ -438,12 +439,62 @@ struct H264PpsStore {
     H264PpsStore(const H264PpsStore &) = delete;
 };
 
+// Deep copies of the application's H.265 parameter sets.
+struct H265VpsStore {
+    StdVideoH265VideoParameterSet vps{};
+    StdVideoH265DecPicBufMgr dpb{};
+    StdVideoH265ProfileTierLevel ptl{};
+    explicit H265VpsStore(const StdVideoH265VideoParameterSet &v) : vps(v)
+    {
+        if (v.pDecPicBufMgr) { dpb = *v.pDecPicBufMgr; vps.pDecPicBufMgr = &dpb; }
+        if (v.pProfileTierLevel) { ptl = *v.pProfileTierLevel; vps.pProfileTierLevel = &ptl; }
+        vps.pHrdParameters = nullptr;
+    }
+    H265VpsStore(const H265VpsStore &) = delete;
+};
+struct H265SpsStore {
+    StdVideoH265SequenceParameterSet sps{};
+    StdVideoH265ProfileTierLevel ptl{};
+    StdVideoH265DecPicBufMgr dpb{};
+    StdVideoH265SequenceParameterSetVui vui{};
+    StdVideoH265LongTermRefPicsSps lt{};
+    std::vector<StdVideoH265ShortTermRefPicSet> rps;
+    explicit H265SpsStore(const StdVideoH265SequenceParameterSet &s) : sps(s)
+    {
+        if (s.pProfileTierLevel) { ptl = *s.pProfileTierLevel; sps.pProfileTierLevel = &ptl; }
+        if (s.pDecPicBufMgr) { dpb = *s.pDecPicBufMgr; sps.pDecPicBufMgr = &dpb; }
+        if (s.pSequenceParameterSetVui) { vui = *s.pSequenceParameterSetVui; vui.pHrdParameters = nullptr; sps.pSequenceParameterSetVui = &vui; }
+        if (s.pLongTermRefPicsSps) { lt = *s.pLongTermRefPicsSps; sps.pLongTermRefPicsSps = &lt; }
+        if (s.pShortTermRefPicSet && s.num_short_term_ref_pic_sets) {
+            rps.assign(s.pShortTermRefPicSet, s.pShortTermRefPicSet + s.num_short_term_ref_pic_sets);
+            sps.pShortTermRefPicSet = rps.data();
+        } else {
+            sps.pShortTermRefPicSet = nullptr;
+        }
+        sps.pScalingLists = nullptr;
+        sps.pPredictorPaletteEntries = nullptr;
+    }
+    H265SpsStore(const H265SpsStore &) = delete;
+};
+struct H265PpsStore {
+    StdVideoH265PictureParameterSet pps{};
+    explicit H265PpsStore(const StdVideoH265PictureParameterSet &p) : pps(p)
+    {
+        pps.pScalingLists = nullptr;
+        pps.pPredictorPaletteEntries = nullptr;
+    }
+    H265PpsStore(const H265PpsStore &) = delete;
+};
+
 struct SessionParams {
     uint32_t codec;
     std::map<uint32_t, ParamSummary> sps;   // H.264/H.265 SPS id -> summary
     std::map<uint32_t, uint32_t> pps_cabac; // H.264 PPS id -> entropy_coding_mode_flag
     std::map<uint32_t, std::shared_ptr<H264SpsStore>> h264_sps;
     std::map<uint32_t, std::shared_ptr<H264PpsStore>> h264_pps;
+    std::map<uint32_t, std::shared_ptr<H265VpsStore>> h265_vps;
+    std::map<uint32_t, std::shared_ptr<H265SpsStore>> h265_sps;
+    std::map<uint32_t, std::shared_ptr<H265PpsStore>> h265_pps;
     void *probe = nullptr;                  // backend encoder used only for parameter sets
     venc_config probe_cfg{};
 };
@@ -462,6 +513,9 @@ struct Session {
     // the backend's own H.264 parameter sets, for rewriting its slices
     venc::Sps enc_sps;
     venc::Pps enc_pps;
+    venc::h265::Sps enc_sps5;
+    venc::h265::Pps enc_pps5;
+    venc::h265::PocMap pocs;
     bool enc_parsed = false;
     std::string warned;
 };
@@ -2217,7 +2271,12 @@ void add_h265_params(SessionParams *p, const VkVideoEncodeH265SessionParametersA
             m.fps_den = s.pSequenceParameterSetVui->vui_num_units_in_tick;
         }
         p->sps[s.sps_seq_parameter_set_id] = m;
+        p->h265_sps[s.sps_seq_parameter_set_id] = std::make_shared<H265SpsStore>(s);
     }
+    for (uint32_t i = 0; i < add->stdVPSCount; i++)
+        p->h265_vps[add->pStdVPSs[i].vps_video_parameter_set_id] = std::make_shared<H265VpsStore>(add->pStdVPSs[i]);
+    for (uint32_t i = 0; i < add->stdPPSCount; i++)
+        p->h265_pps[add->pStdPPSs[i].pps_pic_parameter_set_id] = std::make_shared<H265PpsStore>(add->pStdPPSs[i]);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL CreateVideoSessionParametersKHR(VkDevice dev, const VkVideoSessionParametersCreateInfoKHR *ci,
@@ -2233,6 +2292,9 @@ VKAPI_ATTR VkResult VKAPI_CALL CreateVideoSessionParametersKHR(VkDevice dev, con
         p->pps_cabac = t->pps_cabac;
         p->h264_sps = t->h264_sps;
         p->h264_pps = t->h264_pps;
+        p->h265_vps = t->h265_vps;
+        p->h265_sps = t->h265_sps;
+        p->h265_pps = t->h265_pps;
     }
     if (s->codec == VENC_H264) {
         auto *h = (const VkVideoEncodeH264SessionParametersCreateInfoKHR *)find_struct(ci->pNext, VK_STRUCTURE_TYPE_VIDEO_ENCODE_H264_SESSION_PARAMETERS_CREATE_INFO_KHR);
@@ -2293,6 +2355,24 @@ bool identity_config(const SessionParams *p, uint32_t sps_id, uint32_t pps_id, u
     }
     c->fps_num = m.fps_num ? m.fps_num : 90;
     c->fps_den = m.fps_num ? m.fps_den : 1;
+    auto h5 = p->h265_sps.find(sps_id);
+    if (p->codec == VENC_H265 && h5 != p->h265_sps.end()) {
+        const StdVideoH265SequenceParameterSet &x = h5->second->sps;
+        // the coded size: the encoder's picture grid must be the application's (the conformance window only
+        // crops the display); the layer pads source pictures to it
+        c->width = x.pic_width_in_luma_samples;
+        c->height = x.pic_height_in_luma_samples;
+        c->h265_log2_min_cb = 3 + x.log2_min_luma_coding_block_size_minus3;
+        c->h265_log2_ctb = c->h265_log2_min_cb + x.log2_diff_max_min_luma_coding_block_size;
+        c->h265_log2_min_tb = 2 + x.log2_min_luma_transform_block_size_minus2;
+        c->h265_log2_max_tb = c->h265_log2_min_tb + x.log2_diff_max_min_luma_transform_block_size;
+        c->h265_tu_depth_inter = x.max_transform_hierarchy_depth_inter + 1u;
+        c->h265_tu_depth_intra = x.max_transform_hierarchy_depth_intra + 1u;
+        c->h265_amp = x.flags.amp_enabled_flag ? 2 : 1;
+        c->h265_sao = x.flags.sample_adaptive_offset_enabled_flag ? 2 : 1;
+        c->h265_tmvp = x.flags.sps_temporal_mvp_enabled_flag ? 2 : 1;
+        c->h265_strong_intra = x.flags.strong_intra_smoothing_enabled_flag ? 2 : 1;
+    }
     if (p->codec == VENC_H264 && c->profile_idc != 66 && c->profile_idc != 77 && c->profile_idc != 100)
         c->profile_idc = c->transform_8x8 ? 100 : (c->cabac ? 77 : 66);   // unknown/invalid: the least that fits
     return true;
@@ -2301,7 +2381,11 @@ bool same_identity(const venc_config &a, const venc_config &b)
 {
     return a.codec == b.codec && a.width == b.width && a.height == b.height && a.profile_idc == b.profile_idc &&
            a.bit_depth == b.bit_depth && a.cabac == b.cabac && a.transform_8x8 == b.transform_8x8 &&
-           a.chroma_qp_offset == b.chroma_qp_offset && a.fps_num == b.fps_num && a.fps_den == b.fps_den;
+           a.chroma_qp_offset == b.chroma_qp_offset && a.fps_num == b.fps_num && a.fps_den == b.fps_den &&
+           a.h265_log2_ctb == b.h265_log2_ctb && a.h265_log2_min_cb == b.h265_log2_min_cb && a.h265_log2_min_tb == b.h265_log2_min_tb &&
+           a.h265_log2_max_tb == b.h265_log2_max_tb && a.h265_tu_depth_inter == b.h265_tu_depth_inter &&
+           a.h265_tu_depth_intra == b.h265_tu_depth_intra && a.h265_amp == b.h265_amp && a.h265_sao == b.h265_sao &&
+           a.h265_tmvp == b.h265_tmvp && a.h265_strong_intra == b.h265_strong_intra;
 }
 
 // The backend's H.264 SPS/PPS, parsed (for rewriting its slices and for PPS overrides).
@@ -2323,6 +2407,30 @@ bool backend_h264_params(void *enc, venc::Sps &sps, venc::Pps &pps)
             have_sps = venc::parse_sps(buf + i + 4, j - i - 4, sps);
         else if (t == 8 && have_sps)
             have_pps = venc::parse_pps(buf + i + 4, j - i - 4, sps, pps);
+        i = j;
+    }
+    return have_sps && have_pps;
+}
+
+// The backend's H.265 SPS/PPS, parsed.
+bool backend_h265_params(void *enc, venc::h265::Sps &sps, venc::h265::Pps &pps)
+{
+    uint8_t buf[4096];
+    size_t n = sizeof(buf);
+    if (g_backend->headers(enc, buf, &n) != 0)
+        return false;
+    bool have_sps = false, have_pps = false;
+    for (size_t i = 0; i + 4 < n;) {
+        size_t j = i + 4;
+        while (j + 4 <= n && !(buf[j] == 0 && buf[j + 1] == 0 && buf[j + 2] == 0 && buf[j + 3] == 1))
+            j++;
+        if (j + 4 > n)
+            j = n;
+        uint32_t t = (buf[i + 4] >> 1) & 0x3f;
+        if (t == 33)
+            have_sps = venc::h265::parse_sps(buf + i + 4, j - i - 4, sps);
+        else if (t == 34)
+            have_pps = venc::h265::parse_pps(buf + i + 4, j - i - 4, pps);
         i = j;
     }
     return have_sps && have_pps;
@@ -2403,6 +2511,50 @@ VKAPI_ATTR VkResult VKAPI_CALL GetEncodedVideoSessionParametersKHR(VkDevice, con
             fb->hasOverrides = pps_changed;
             if (auto *h = (VkVideoEncodeH264SessionParametersFeedbackInfoKHR *)find_struct_out(fb->pNext, VK_STRUCTURE_TYPE_VIDEO_ENCODE_H264_SESSION_PARAMETERS_FEEDBACK_INFO_KHR)) {
                 h->hasStdSPSOverrides = VK_FALSE;
+                h->hasStdPPSOverrides = pps_changed;
+            }
+        }
+        if (!data) {
+            *size = out.size();
+            return VK_SUCCESS;
+        }
+        if (*size < out.size()) {
+            *size = 0;
+            return VK_INCOMPLETE;
+        }
+        memcpy(data, out.data(), out.size());
+        *size = out.size();
+        return VK_SUCCESS;
+    }
+    if (p->codec == VENC_H265) {
+        auto si = p->h265_sps.find(sps_id);
+        auto pi = p->h265_pps.find(pps_id);
+        uint32_t vps_id = si != p->h265_sps.end() ? si->second->sps.sps_video_parameter_set_id : 0;
+        auto vi = p->h265_vps.find(vps_id);
+        venc::h265::Sps esps;
+        venc::h265::Pps epps;
+        if ((want_sps && si == p->h265_sps.end()) || (want_pps && pi == p->h265_pps.end()) ||
+            (want_vps && vi == p->h265_vps.end()) || !backend_h265_params(p->probe, esps, epps))
+            return VK_ERROR_INITIALIZATION_FAILED;
+        std::vector<uint8_t> out;
+        bool pps_changed = false, sps_changed = false;
+        if (want_vps)
+            venc::h265::write_vps(out, vi->second->vps);
+        if (want_sps) {
+            StdVideoH265SequenceParameterSet sps = si->second->sps;
+            sps_changed = venc::h265::override_sps(sps, esps);
+            venc::h265::write_sps(out, sps);
+        }
+        if (want_pps) {
+            StdVideoH265PictureParameterSet pps = pi->second->pps;
+            pps_changed = venc::h265::override_pps(pps, epps);
+            venc::h265::write_pps(out, pps);
+        }
+        if (fb) {
+            fb->hasOverrides = pps_changed || sps_changed;
+            if (auto *h = (VkVideoEncodeH265SessionParametersFeedbackInfoKHR *)find_struct_out(fb->pNext, VK_STRUCTURE_TYPE_VIDEO_ENCODE_H265_SESSION_PARAMETERS_FEEDBACK_INFO_KHR)) {
+                h->hasStdVPSOverrides = VK_FALSE;
+                h->hasStdSPSOverrides = sps_changed;
                 h->hasStdPPSOverrides = pps_changed;
             }
         }
@@ -2562,6 +2714,8 @@ VKAPI_ATTR void VKAPI_CALL CmdEncodeVideoKHR(VkCommandBuffer cb, const VkVideoEn
     if (auto *h = (const VkVideoEncodeH265PictureInfoKHR *)find_struct(ei->pNext, VK_STRUCTURE_TYPE_VIDEO_ENCODE_H265_PICTURE_INFO_KHR)) {
         if (h->pStdPictureInfo) {
             op.force_idr = h->pStdPictureInfo->pic_type == STD_VIDEO_H265_PICTURE_TYPE_IDR || h->pStdPictureInfo->flags.IrapPicFlag;
+            op.pic.have = true;
+            op.pic.poc = h->pStdPictureInfo->PicOrderCntVal;
             op.sps_id = h->pStdPictureInfo->pps_seq_parameter_set_id;
             op.pps_id = h->pStdPictureInfo->pps_pic_parameter_set_id;
         }
@@ -2760,8 +2914,31 @@ void barrier_into(Device *d, VkCommandBuffer cb, const Op &op)
 
 struct PlaneCopy {
     VkDeviceSize luma_off, chroma_off;
-    uint32_t luma_stride, chroma_stride, w, h;
+    uint32_t luma_stride, chroma_stride;
+    uint32_t w, h;     // the picture handed to the encoder (padded to the coded size)
+    uint32_t cw, ch;   // the region copied from the source image
 };
+
+// Replicates the last column/row of the copied region out to the padded size (both planes).
+void pad_picture(uint8_t *base, const PlaneCopy &pc, uint32_t tb)
+{
+    if (pc.cw >= pc.w && pc.ch >= pc.h)
+        return;
+    auto pad = [&](uint8_t *plane, uint32_t stride, uint32_t cw_bytes, uint32_t w_bytes, uint32_t ch, uint32_t h, uint32_t unit) {
+        for (uint32_t y = 0; y < ch; y++) {
+            uint8_t *row = plane + (size_t)y * stride;
+            for (uint32_t x = cw_bytes; x + unit <= w_bytes; x += unit)
+                memcpy(row + x, row + cw_bytes - unit, unit);
+        }
+        for (uint32_t y = ch; y < h; y++)
+            memcpy(plane + (size_t)y * stride, plane + (size_t)(ch - 1) * stride, w_bytes);
+    };
+    if (pc.cw == 0 || pc.ch == 0)
+        return;
+    pad(base + pc.luma_off, pc.luma_stride, pc.cw * tb, pc.w * tb, pc.ch, pc.h, tb);
+    pad(base + pc.chroma_off, pc.chroma_stride, ((pc.cw + 1) / 2) * 2 * tb, ((pc.w + 1) / 2) * 2 * tb, (pc.ch + 1) / 2,
+        (pc.h + 1) / 2, 2 * tb);
+}
 
 uint32_t texel_bytes(VkFormat f) { return f == VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 ? 2 : 1; }
 
@@ -2802,9 +2979,11 @@ void ensure_session_encoder(Session *s, SessionParams *p, const Op &op)
     s->enc = g_backend->create(&c);
     s->cfg = c;
     s->reset_pending = false;
-    s->enc_parsed = s->enc && s->codec == VENC_H264 && backend_h264_params(s->enc, s->enc_sps, s->enc_pps);
-    if (s->enc && s->codec == VENC_H264 && !s->enc_parsed)
-        LOGE("cannot parse the backend's H.264 parameter sets: slices are passed through unchanged");
+    s->pocs.reset();
+    s->enc_parsed = s->enc && (s->codec == VENC_H264 ? backend_h264_params(s->enc, s->enc_sps, s->enc_pps)
+                                                     : backend_h265_params(s->enc, s->enc_sps5, s->enc_pps5));
+    if (s->enc && !s->enc_parsed)
+        LOGE("cannot parse the backend's parameter sets: slices are passed through unchanged");
     if (!s->enc)
         LOGE("backend %s could not create a %ux%u %s encoder", g_backend->name, c.width, c.height, c.codec == VENC_H264 ? "H.264" : "H.265");
     else
@@ -2838,18 +3017,35 @@ void run_batch(FakeQueue *q, Job::Batch &b, VkFence app_fence)
     }
     // 1. source pictures to host memory, after the batch's waits
     std::vector<const Op *> encodes;
-    for (auto &ops : b.snapshot)
-        for (auto &op : ops)
-            if (op.kind == Op::Encode)
-                encodes.push_back(&op);
+    std::vector<VkExtent2D> coded;   // per encode: the size the encoder works at (H.265: the SPS's coded size)
+    {
+        Session *cs = nullptr;
+        SessionParams *cp = nullptr;
+        for (auto &ops : b.snapshot)
+            for (auto &op : ops) {
+                if (op.kind == Op::BeginCoding) {
+                    cs = op.session;
+                    cp = op.params;
+                } else if (op.kind == Op::Encode) {
+                    encodes.push_back(&op);
+                    VkExtent2D e = op.ext;
+                    venc_config c;
+                    if (cs && cp && cs->codec == VENC_H265 && identity_config(cp, op.sps_id, op.pps_id, cs->profile_idc, &c))
+                        e = {std::max(e.width, c.width), std::max(e.height, c.height)};
+                    coded.push_back(e);
+                }
+            }
+    }
     std::vector<PlaneCopy> planes(encodes.size());
     VkDeviceSize need = 0;
     for (size_t i = 0; i < encodes.size(); i++) {
         const Op &op = *encodes[i];
         uint32_t tb = texel_bytes(op.src_format);
         PlaneCopy &pc = planes[i];
-        pc.w = op.ext.width;
-        pc.h = op.ext.height;
+        pc.cw = op.ext.width;
+        pc.ch = op.ext.height;
+        pc.w = coded[i].width;
+        pc.h = coded[i].height;
         pc.luma_stride = pc.w * tb;
         pc.chroma_stride = ((pc.w + 1) / 2) * 2 * tb;
         pc.luma_off = (need + 255) & ~VkDeviceSize(255);
@@ -2896,12 +3092,12 @@ void run_batch(FakeQueue *q, Job::Batch &b, VkFence app_fence)
                 r[0].bufferRowLength = pc.w;
                 r[0].imageSubresource = {VK_IMAGE_ASPECT_PLANE_0_BIT, 0, op.src_layer, 1};
                 r[0].imageOffset = {op.off.x, op.off.y, 0};
-                r[0].imageExtent = {pc.w, pc.h, 1};
+                r[0].imageExtent = {pc.cw, pc.ch, 1};
                 r[1].bufferOffset = pc.chroma_off;
                 r[1].bufferRowLength = (pc.w + 1) / 2;
                 r[1].imageSubresource = {VK_IMAGE_ASPECT_PLANE_1_BIT, 0, op.src_layer, 1};
                 r[1].imageOffset = {op.off.x / 2, op.off.y / 2, 0};
-                r[1].imageExtent = {(pc.w + 1) / 2, (pc.h + 1) / 2, 1};
+                r[1].imageExtent = {(pc.cw + 1) / 2, (pc.ch + 1) / 2, 1};
                 d->CmdCopyImageToBuffer(q->cb1, op.src, VK_IMAGE_LAYOUT_GENERAL, q->in.buf, 2, r);
             }
         }
@@ -2985,6 +3181,7 @@ void run_batch(FakeQueue *q, Job::Batch &b, VkFence app_fence)
                 pic.chroma_offset = pc.chroma_off;
                 pic.luma_stride = pc.luma_stride;
                 pic.chroma_stride = pc.chroma_stride;
+                pad_picture(q->in.ptr, pc, texel_bytes(op.src_format));
                 pic.width = std::min(pc.w, cur->cfg.width);
                 pic.height = std::min(pc.h, cur->cfg.height);
                 pic.force_idr = op.force_idr;
@@ -3047,6 +3244,46 @@ void run_batch(FakeQueue *q, Job::Batch &b, VkFence app_fence)
                         }
                         if (!ok) {
                             LOGE("slice rewrite failed: %s", err.c_str());
+                        } else if (nb.size() > cap) {
+                            set_query(d, qp, qi, VK_QUERY_RESULT_STATUS_INSUFFICIENT_BITSTREAM_BUFFER_RANGE_KHR, 0);
+                            break;
+                        } else {
+                            memcpy(dst, nb.data(), nb.size());
+                            n = (long)nb.size();
+                        }
+                    }
+                }
+                if (cur->codec == VENC_H265 && cur->enc_parsed && n > 0) {
+                    auto si = curp->h265_sps.find(op.sps_id);
+                    auto pi = curp->h265_pps.find(op.pps_id);
+                    if (si != curp->h265_sps.end() && pi != curp->h265_pps.end()) {
+                        venc::h265::Sps as = venc::h265::sps_from_std(si->second->sps);
+                        venc::h265::Pps ap = venc::h265::pps_from_std(pi->second->pps);
+                        std::string inc = venc::h265::incompatibility(cur->enc_sps5, cur->enc_pps5, as, ap);
+                        if (!inc.empty() && inc != cur->warned) {
+                            LOGE("the application's H.265 parameter sets differ from the encoder's in: %s (picture corruption likely)", inc.c_str());
+                            cur->warned = inc;
+                        }
+                        venc::h265::PicInfo pinfo;
+                        pinfo.have = op.pic.have;
+                        pinfo.idr = op.force_idr;
+                        pinfo.poc = op.pic.poc;
+                        std::vector<uint8_t> src(dst, dst + n), nb;
+                        std::string err;
+                        bool ok = true;
+                        size_t len = (size_t)n;
+                        for (size_t i = 0; i + 4 < len && ok;) {
+                            size_t j = i + 4;
+                            while (j + 4 <= len && !(src[j] == 0 && src[j + 1] == 0 && src[j + 2] == 0 && src[j + 3] == 1))
+                                j++;
+                            if (j + 4 > len)
+                                j = len;
+                            ok = venc::h265::rewrite_slice(src.data() + i + 4, j - i - 4, cur->enc_sps5, cur->enc_pps5, as, ap, pinfo,
+                                                           cur->pocs, nb, &err);
+                            i = j;
+                        }
+                        if (!ok) {
+                            LOGE("H.265 slice rewrite failed: %s", err.c_str());
                         } else if (nb.size() > cap) {
                             set_query(d, qp, qi, VK_QUERY_RESULT_STATUS_INSUFFICIENT_BITSTREAM_BUFFER_RANGE_KHR, 0);
                             break;

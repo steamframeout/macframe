@@ -30,7 +30,7 @@ CXXFLAGS ?= -O2 -g
 WARN = -Wall -Wextra -Wno-unused-parameter -Wno-missing-field-initializers
 # loaded into other programs' processes (SteamVR, games): own C++ runtime, hidden symbols, no undefined
 SOFLAGS = -shared -fPIC -fvisibility=hidden -Wl,--no-undefined -Wl,-z,defs
-LAYER_SRC = layer/venc_layer.cpp layer/h264_rewrite.cpp src/venc_nal.c
+LAYER_SRC = layer/venc_layer.cpp layer/h264_rewrite.cpp layer/h265_rewrite.cpp src/venc_nal.c
 VT_SRC = src/backend_vt.c $(VR)/runtime/wmtr_native.c $(WMTR)/src/transport_virtgpu.c
 
 all: $(OUT)/libVkLayer_steamac_venc.so $(OUT)/libvenc_backend_vt.so $(OUT)/VkLayer_steamac_venc.json

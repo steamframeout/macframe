@@ -38,6 +38,10 @@ t h264-vbr    h264_vulkan 640x480 $MIN_PSNR -rc_mode vbr -b:v 2M -maxrate 4M
 t h264-1080p  h264_vulkan 1920x1080 $MIN_PSNR
 t h264-odd    h264_vulkan 1000x562 $MIN_PSNR -profile:v main
 t h264-cbase  h264_vulkan 640x480 $MIN_PSNR -profile:v constrained_baseline
+t h265        hevc_vulkan 640x480 $MIN_PSNR -g 20
+t h265-cbr    hevc_vulkan 640x480 35 -rc_mode cbr -b:v 1M
+t h265-1080p  hevc_vulkan 1920x1080 $MIN_PSNR
+t h265-odd    hevc_vulkan 1000x562 $MIN_PSNR
 # a process that did not opt in sees the driver unchanged: no video encode
 if STEAMAC_VENC= timeout -s KILL 60 "$FF" -hide_banner -loglevel error -init_hw_device vulkan=vk:0 -filter_hw_device vk \
     -f lavfi -i testsrc2=size=320x240:rate=30 -frames:v 2 -vf format=nv12,hwupload -c:v h264_vulkan -f null - \

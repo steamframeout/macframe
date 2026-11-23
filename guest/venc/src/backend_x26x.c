@@ -88,10 +88,12 @@ static void rc265(x265_param *p, const struct venc_config *c)
             kbps = 20000;
         if (maxk < kbps)
             maxk = kbps;
+        /* plain ABR: x265's VBV turns on CU QP deltas, which would change the PPS with the rate control mode
+         * (this is the test/fallback backend; the stream identity must not depend on rate control) */
+        (void)maxk;
+        (void)vbv;
         p->rc.rateControlMode = X265_RC_ABR;
         p->rc.bitrate = (int)kbps;
-        p->rc.vbvMaxBitrate = (int)(c->rc == VENC_RC_CBR ? kbps : maxk);
-        p->rc.vbvBufferSize = (int)((uint64_t)p->rc.vbvMaxBitrate * vbv / 1000);
         break;
     default:
         p->rc.rateControlMode = X265_RC_CRF;
@@ -166,15 +168,41 @@ static void *create(const struct venc_config *c)
         p->fpsNum = fn;
         p->fpsDenom = fd;
         p->keyframeMax = -1;                /* infinite */
+        p->bOpenGOP = 0;                    /* forced keyframes are IDR, not CRA */
         p->bRepeatHeaders = 0;
         p->bAnnexB = 1;
         p->bEnableAccessUnitDelimiters = 0;
         p->bEmitInfoSEI = 0;
         p->bEmitHRDSEI = 0;
         p->bframes = 0;
-        p->logLevel = X265_LOG_ERROR;
+        p->logLevel = getenv("VENC_X265_LOG") ? X265_LOG_DEBUG : X265_LOG_ERROR;
         p->frameNumThreads = 1;
         p->bEnableWavefront = 0;
+        /* the application's SPS coding tools, where x265 can follow them */
+        if (c->h265_log2_ctb >= 4 && c->h265_log2_ctb <= 6)
+            p->maxCUSize = 1u << c->h265_log2_ctb;
+        if (c->h265_log2_min_cb >= 3 && c->h265_log2_min_cb <= 6)
+            p->minCUSize = 1u << c->h265_log2_min_cb;
+        if (c->h265_log2_max_tb >= 2 && c->h265_log2_max_tb <= 5)
+            p->maxTUSize = 1u << c->h265_log2_max_tb;
+        /* x265 writes max_transform_hierarchy_depth = tuQTMax*Depth - 1 (1..4: SPS depths 0..3) */
+        if (c->h265_tu_depth_inter)
+            p->tuQTMaxInterDepth = c->h265_tu_depth_inter > 4 ? 4 : c->h265_tu_depth_inter;
+        if (c->h265_tu_depth_intra)
+            p->tuQTMaxIntraDepth = c->h265_tu_depth_intra > 4 ? 4 : c->h265_tu_depth_intra;
+        if (c->h265_amp) {
+            p->bEnableAMP = c->h265_amp == 2;
+            if (p->bEnableAMP)
+                p->bEnableRectInter = 1;   /* AMP needs rectangular partitions (off in the fast presets) */
+        }
+        if (c->h265_sao)
+            p->bEnableSAO = c->h265_sao == 2;
+        if (c->h265_tmvp)
+            p->bEnableTemporalMvp = c->h265_tmvp == 2;
+        if (c->h265_strong_intra)
+            p->bEnableStrongIntraSmoothing = c->h265_strong_intra == 2;
+        p->rc.aqMode = X265_AQ_NONE;   /* no CU QP deltas: the PPS stays the same whatever the rate control */
+        p->rc.cuTree = 0;
         rc265(p, c);
         if (x265_param_apply_profile(p, "main") < 0)
             goto fail;
