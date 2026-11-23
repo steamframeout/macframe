@@ -150,7 +150,17 @@ final class VM {
             log("gpu: graphics path DXMT (wmtr context, \(lib))")
         } else {
             for k in ["STEAMAC_WMTR", "STEAMAC_WMTR_LIB", "WMTR_PRESENT"] { unsetenv(k) }
-            log("gpu: graphics path Vulkan")
+            // Steam Frame streaming: the guest's Vulkan Video encode layer (guest/venc) sends SteamVR's pictures to
+            // VideoToolbox through a wmtr context (SVR_VENC), so the context type is offered whenever the bundled
+            // executor loads. Games stay on Vulkan (steamac.gfx=vulkan); no overlay presentation.
+            let bundled = LauncherSettings.Wmtr.path(for: "")
+            if LauncherSettings.GraphicsPath.hostLibraryPath != nil, LauncherSettings.Wmtr.unavailableReason(bundled) == nil {
+                setenv("STEAMAC_WMTR", "1", 1)
+                setenv("STEAMAC_WMTR_LIB", bundled, 1)
+                log("gpu: graphics path Vulkan (wmtr context offered for video encoding)")
+            } else {
+                log("gpu: graphics path Vulkan")
+            }
         }
     }
 

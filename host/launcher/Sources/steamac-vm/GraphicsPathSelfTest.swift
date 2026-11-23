@@ -31,6 +31,13 @@ enum GraphicsPathSelfTest {
                 } else {
                     check(false, "DXMT: cannot load \(lib ?? "-")")
                 }
+            } else if LauncherSettings.GraphicsPath.hostLibraryPath != nil,
+                      LauncherSettings.Wmtr.unavailableReason(LauncherSettings.Wmtr.path(for: "")) == nil {
+                // the bundled executor is offered on the Vulkan path too (Steam Frame video encoding), never a
+                // leftover library and never the overlay presentation
+                check(wmtr == "1" && lib == LauncherSettings.Wmtr.path(for: ""),
+                      "\(path.name): STEAMAC_WMTR_LIB is \(lib ?? "unset"), not the bundled executor")
+                check(ProcessInfo.processInfo.environment["WMTR_PRESENT"] == nil, "\(path.name): WMTR_PRESENT left set")
             } else {
                 check(wmtr == nil && lib == nil, "\(path.name): wmtr environment left set")
             }

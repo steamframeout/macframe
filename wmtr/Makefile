@@ -87,8 +87,8 @@ test: $(OUT)/wmtr_loopback $(OUT)/wmtr_present_test $(OUT)/wmtr_spin_test $(OUT)
 	./$(OUT)/wmtr_spin_test
 	./$(OUT)/wmtr_lifetime_test
 	./$(OUT)/wmtr_dxmt_test $(OUT)/dxmt_test.metallib
-$(OUT)/wmtr_lifetime_test: tests/wmtr_lifetime_test.m src/wmtr_host.m src/wmtr_objects.h src/wmtr_objects.inc src/wmtr_object_cmds.inc src/wmtr_vr.m include/*.h | $(OUT)
-	$(CC) $(CFLAGS) -o $@ tests/wmtr_lifetime_test.m src/wmtr_vr.m src/wmtr_vr_shm.c src/wmtr_venc.m ../guest/venc/src/venc_nal.c -framework Foundation -framework Metal -framework Cocoa -framework QuartzCore -framework IOSurface -framework VideoToolbox -framework CoreMedia -framework CoreVideo
+$(OUT)/wmtr_lifetime_test: tests/wmtr_lifetime_test.m src/wmtr_host.m src/wmtr_objects.h src/wmtr_objects.inc src/wmtr_object_cmds.inc src/wmtr_vr.m include/*.h $(OUT)/wmtr_venc.o $(OUT)/venc_nal.o | $(OUT)
+	$(CC) $(CFLAGS) -o $@ tests/wmtr_lifetime_test.m src/wmtr_vr.m src/wmtr_vr_shm.c $(OUT)/wmtr_venc.o $(OUT)/venc_nal.o -framework Foundation -framework Metal -framework Cocoa -framework QuartzCore -framework IOSurface -framework VideoToolbox -framework CoreMedia -framework CoreVideo
 $(OUT)/wmtr_spin_test: tests/wmtr_spin_test.c include/wmtr_spin.h | $(OUT)
 	$(CC) -O2 -Wall $(INC) -o $@ tests/wmtr_spin_test.c -lpthread
 $(OUT)/wmtr_present_test: tests/wmtr_present_test.m $(OUT)/libwmtr_host.dylib
@@ -99,8 +99,8 @@ $(OUT)/wmtr_dxmt_test: tests/wmtr_dxmt_test.m tests/dxmt-shim/wineunixlib.h src/
 	  -L$(OUT) -lwmtr_host -Wl,-rpath,@executable_path -framework Foundation -framework Metal
 $(OUT)/dxmt_test.metallib: tests/dxmt_test.metal | $(OUT)
 	xcrun -sdk macosx metal -o $@ $<
-$(OUT)/wmtr_loopback: tests/wmtr_loopback.m src/wmtr_host.m src/wmtr_objects.h src/wmtr_objects.inc src/wmtr_object_cmds.inc src/wmtr_vr.m src/wmtr_vr_shm.c src/wmtr_client.c include/*.h | $(OUT)
-	$(CC) $(CFLAGS) -DWMTR_TESTING -o $@ tests/wmtr_loopback.m src/wmtr_host.m src/wmtr_vr.m src/wmtr_vr_shm.c src/wmtr_client.c -framework Foundation -framework Metal -framework Cocoa -framework QuartzCore -framework IOSurface
+$(OUT)/wmtr_loopback: tests/wmtr_loopback.m src/wmtr_host.m src/wmtr_objects.h src/wmtr_objects.inc src/wmtr_object_cmds.inc src/wmtr_vr.m src/wmtr_vr_shm.c src/wmtr_client.c include/*.h $(OUT)/wmtr_venc.o $(OUT)/venc_nal.o | $(OUT)
+	$(CC) $(CFLAGS) -DWMTR_TESTING -o $@ tests/wmtr_loopback.m src/wmtr_host.m src/wmtr_vr.m src/wmtr_vr_shm.c src/wmtr_client.c $(OUT)/wmtr_venc.o $(OUT)/venc_nal.o -framework Foundation -framework Metal -framework Cocoa -framework QuartzCore -framework IOSurface -framework VideoToolbox -framework CoreMedia -framework CoreVideo
 
 # -mtls-dialect=gnu: newer GCC defaults to TLS descriptors, which need GLIBC_ABI_GNU2_TLS (absent in the
 # Steam Runtime's and the FEX rootfs's glibc), so the unixlib would not load

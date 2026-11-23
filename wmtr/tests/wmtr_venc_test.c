@@ -14,6 +14,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "venc_proto.h"
@@ -127,6 +128,7 @@ run_codec(uint32_t codec, const char *dir) {
   if (!in || !out) return;
 
   size_t total = 0;
+  double ms_sum = 0, ms_max = 0;
   const int frames = 90;
   for (int i = 0; i < frames; i++) {
     /* a moving gradient with a bar: content that changes but predicts well */
@@ -153,7 +155,13 @@ run_codec(uint32_t codec, const char *dir) {
     m.out_offset = 256, m.out_capacity = out_size - 256;
     m.force_idr = i == 60;
     m.pts = (uint64_t)i;
+    struct timespec t0, t1;
+    clock_gettime(CLOCK_MONOTONIC, &t0);
     wmtr_venc_query(&m, sizeof m);
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    double ms = (t1.tv_sec - t0.tv_sec) * 1e3 + (t1.tv_nsec - t0.tv_nsec) / 1e6;
+    ms_sum += ms;
+    if (ms > ms_max && i > 0) ms_max = ms;
     CHECK(m.status == 0 && m.bytes > 0, "%s frame %d: %d", name, i, m.status);
     if (m.status) break;
     int want_idr = i == 0 || i == 60;
@@ -168,7 +176,8 @@ run_codec(uint32_t codec, const char *dir) {
     if (f) fwrite(out + 256, 1, m.bytes, f);
     total += m.bytes;
   }
-  printf("%s: %d frames 1080p, %.1f KiB per frame -> %s\n", name, frames, total / 1024.0 / frames, path);
+  printf("%s: %d frames 1080p, %.1f KiB per frame, encode %.2f ms average, %.2f ms worst (after the first) -> %s\n",
+         name, frames, total / 1024.0 / frames, ms_sum / frames, ms_max, path);
   if (f) fclose(f);
 
   /* a picture past the end of its memory, and memory that is not attached */

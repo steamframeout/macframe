@@ -153,7 +153,14 @@ step_host() {
     log "wmtr host library"
     local mk=(DXMT="$src" DXMT_BUILD="$native" LLVM="$llvm" PREFIX="$root/work/out/host")
     make -C "$root/wmtr" "${mk[@]}" host install
-    make -C "$root/wmtr" "${mk[@]}" test
+    # the VideoToolbox encoder needs no GPU (its media engine is there on GitHub's Macs too)
+    make -C "$root/wmtr" "${mk[@]}" venc-test
+    # WMTR_SKIP_GPU_TESTS=1: CI Macs have a paravirtual GPU without real Apple GPU features (like MVK_SKIP_REPRO)
+    if [ "${WMTR_SKIP_GPU_TESTS:-0}" = 1 ]; then
+        log "wmtr GPU tests skipped (WMTR_SKIP_GPU_TESTS=1)"
+    else
+        make -C "$root/wmtr" "${mk[@]}" test
+    fi
 }
 
 step_pe() {
