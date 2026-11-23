@@ -54,6 +54,12 @@ $(OUT)/venc_nal.o: ../guest/venc/src/venc_nal.c ../guest/venc/include/venc_backe
 # host memory of guest Vulkan eye buffers (plain C; its test runs on macOS and Linux)
 $(OUT)/wmtr_vr_shm.o: src/wmtr_vr_shm.c include/wmtr_vr_shm.h | $(OUT)
 	$(CC) $(CFLAGS) -c $< -o $@
+# the VideoToolbox encoder alone (no DXMT, no LLVM): make venc-test
+$(OUT)/wmtr_venc_test: tests/wmtr_venc_test.c $(OUT)/wmtr_venc.o $(OUT)/venc_nal.o $(OUT)/wmtr_vr_shm.o | $(OUT)
+	$(CC) $(CFLAGS) -o $@ tests/wmtr_venc_test.c $(OUT)/wmtr_venc.o $(OUT)/venc_nal.o $(OUT)/wmtr_vr_shm.o \
+	  -framework Foundation -framework VideoToolbox -framework CoreMedia -framework CoreVideo
+venc-test: $(OUT)/wmtr_venc_test
+	./$(OUT)/wmtr_venc_test $(OUT)
 $(OUT)/wmtr_vr_shm_test: tests/wmtr_vr_shm_test.c src/wmtr_vr_shm.c include/wmtr_vr_shm.h | $(OUT)
 	$(CC) $(CFLAGS) -o $@ tests/wmtr_vr_shm_test.c src/wmtr_vr_shm.c
 
@@ -136,4 +142,4 @@ install: $(OUT)/libwmtr_host.dylib
 
 clean:
 	rm -rf $(OUT)
-.PHONY: all host server client-macos client-linux guest-tests test test-linux install dxmt-payload clean
+.PHONY: all host server client-macos client-linux guest-tests test test-linux venc-test install dxmt-payload clean

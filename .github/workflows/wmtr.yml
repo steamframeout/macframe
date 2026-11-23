@@ -1,0 +1,71 @@
+# The Mac executor library (libwmtr_host.dylib: DXMT's Metal executor + the VR exporter + the VideoToolbox encoder of
+# the guest's Vulkan Video layer), built and tested on its own, without the rest of the app.
+#
+#   venc   wmtr_venc.m against VideoToolbox (make -C wmtr venc-test), the streams decoded with FFmpeg
+#   host   host/dxmt/build.sh fetch llvm native host (LLVM 15 cached by its pin); `make test` needs a real Apple GPU
+#          (GitHub's Macs have a paravirtual one), so its result is reported, not required
+name: wmtr
+
+on:
+  push:
+    branches: [wmtr-ci]
+  workflow_dispatch:
+
+concurrency:
+  group: wmtr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  venc:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode 26
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          xcodebuild -version
+      - name: build and run the encoder test
+        env:
+          WMTR_VENC_ALLOW_SKIP: "1"
+        run: make -C wmtr venc-test
+      - name: decode the streams
+        run: |
+          brew install ffmpeg >/dev/null
+          for f in wmtr/build/venc_h264.264 wmtr/build/venc_h265.265; do
+            [ -f "$f" ] || { echo "$f: not written (encoder skipped)"; continue; }
+            ffmpeg -hide_banner -v error -xerror -i "$f" -f null - || { echo "$f: decode errors"; exit 1; }
+            n=$(ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames,width,height,profile -of csv=p=0 "$f")
+            echo "$f: $n"
+          done
+
+  host:
+    runs-on: macos-26
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode 26 + Metal toolchain
+        run: |
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          xcodebuild -version
+          xcrun -sdk macosx -f metal >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
+          xcrun -sdk macosx metal --version
+      - name: Homebrew packages
+        run: brew install meson ninja cmake pkgconf zstd
+      - uses: actions/cache@v4
+        with:
+          key: llvm15-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('host/dxmt/pin.env') }}
+          path: work/out/host/llvm15
+      - name: DXMT source, LLVM 15, airconv
+        run: host/dxmt/build.sh fetch llvm native
+      - name: libwmtr_host.dylib
+        run: |
+          make -C wmtr DXMT="$PWD/work/src/dxmt" DXMT_BUILD="$PWD/work/build/dxmt-native" LLVM="$PWD/work/out/host/llvm15" \
+            PREFIX="$PWD/work/out/host" host install
+          ls -la work/out/host/lib
+          otool -L work/out/host/lib/libwmtr_host.dylib
+          nm -gU work/out/host/lib/libwmtr_host.dylib | grep -E 'wmtr_venc_query|wmtr_vr_query' || exit 1
+      - name: wmtr tests (need a real Apple GPU; reported only)
+        continue-on-error: true
+        run: |
+          make -C wmtr DXMT="$PWD/work/src/dxmt" DXMT_BUILD="$PWD/work/build/dxmt-native" LLVM="$PWD/work/out/host/llvm15" test
