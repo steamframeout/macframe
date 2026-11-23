@@ -1,0 +1,112 @@
+#!/bin/bash
+# frame-adapter-bridge: use the Steam Frame Wireless Adapter on an Apple Silicon Mac.
+#
+# macOS has no driver for the adapter (Realtek RTL8852CU, USB 28de:2432). This starts a tiny ARM64 Linux VM
+# (QEMU with Apple's Hypervisor.framework) that takes the adapter over USB, drives it with Linux's rtw89_8852cu,
+# joins the Frame's dedicated 6 GHz link and forwards the stream port to this Mac, where steamac-vrhost listens.
+#
+#   frame-adapter-bridge [options] [link.conf]
+#     link.conf        default: ~/Library/Application Support/FrameBridge/link.conf (frame-probe writes it)
+#     --image DIR      bridge-kernel + bridge-initramfs.img (default: ../image next to this script)
+#     --scan           only list the 6 GHz networks the adapter sees, then keep running (find the Frame's link)
+#     --selftest       no adapter needed: simulated radios inside the VM, a fake Frame, and a test listener on
+#                      this Mac (port 19757). Checks QEMU, HVF, the VM's Wi-Fi stack and the NAT path to the Mac.
+#     --vmnet          vmnet-shared networking instead of QEMU user networking (needs sudo; lower overhead)
+#     --log FILE       console log (default: ~/Library/Logs/FrameBridge/bridge.log)
+#
+# Requirements: Apple Silicon, macOS 13+, Homebrew QEMU (brew install qemu). Ctrl-A X quits the VM console.
+set -euo pipefail
+
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+IMAGE=${FRAMEBRIDGE_IMAGE:-$HERE/../image}
+CONF="$HOME/Library/Application Support/FrameBridge/link.conf"
+LOG="$HOME/Library/Logs/FrameBridge/bridge.log"
+MODE_OVERRIDE= SELFTEST=0 VMNET=0
+VID=0x28de PID=0x2432
+
+die() { echo "frame-adapter-bridge: $*" >&2; exit 1; }
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --image) IMAGE=$2; shift 2 ;;
+    --scan) MODE_OVERRIDE=scan; shift ;;
+    --selftest) SELFTEST=1; shift ;;
+    --vmnet) VMNET=1; shift ;;
+    --log) LOG=$2; shift 2 ;;
+    -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -*) die "unknown option $1" ;;
+    *) CONF=$1; shift ;;
+  esac
+done
+
+[ "$(uname -s)" = Darwin ] || die "this is the macOS launcher (on Linux, use the adapter directly: kernel 7.2+)"
+[ "$(uname -m)" = arm64 ] || die "needs an Apple Silicon Mac (Hypervisor.framework on arm64)"
+QEMU=$(command -v qemu-system-aarch64 || true)
+[ -n "$QEMU" ] || die "QEMU not found: brew install qemu"
+for f in bridge-kernel bridge-initramfs.img; do [ -f "$IMAGE/$f" ] || die "missing $IMAGE/$f (build-image.sh output)"; done
+if [ -f "$IMAGE/SHA256SUMS" ]; then
+  (cd "$IMAGE" && shasum -a 256 -c SHA256SUMS >/dev/null) || die "image checksum mismatch in $IMAGE"
+fi
+mkdir -p "$(dirname "$LOG")"
+
+# the link configuration goes in through QEMU fw_cfg; a private copy (no commas in its path, mode 600)
+TMPD=$(mktemp -d "${TMPDIR:-/tmp}/framebridge.XXXXXX")
+RESPONDER_PID=
+cleanup() { [ -n "$RESPONDER_PID" ] && kill "$RESPONDER_PID" 2>/dev/null; rm -rf "$TMPD"; }
+trap cleanup EXIT
+umask 077
+if [ "$SELFTEST" = 1 ]; then
+  printf 'MODE=station\nCOUNTRY=US\nSSID=FrameBridge-SelfTest\nPSK=selftest-%s\nKEY_MGMT=SAE\nSELFTEST=hwsim\nPORTS=19757\n' \
+    "$RANDOM$RANDOM" > "$TMPD/link.conf"
+else
+  [ -f "$CONF" ] || die "no link configuration at $CONF (run frame-probe first, or copy link.conf.example)"
+  grep -v '^MODE=' "$CONF" > "$TMPD/link.conf" || true
+  if [ -n "$MODE_OVERRIDE" ]; then echo "MODE=$MODE_OVERRIDE" >> "$TMPD/link.conf"
+  else grep -m1 '^MODE=' "$CONF" >> "$TMPD/link.conf" || echo "MODE=station" >> "$TMPD/link.conf"; fi
+fi
+
+USB=()
+if [ "$SELFTEST" = 0 ]; then
+  # the adapter must be on USB, and no macOS driver may hold it (there is none for it)
+  if ! ioreg -p IOUSB -l -w0 2>/dev/null | grep -q '"idProduct" = 9266'; then
+    die "the Steam Frame Wireless Adapter (USB 28de:2432) is not connected (a USB 3 port or hub works best)"
+  fi
+  USB=(-device qemu-xhci,id=xhci -device "usb-host,bus=xhci.0,vendorid=$VID,productid=$PID")
+else
+  USB=(-device qemu-xhci,id=xhci)
+  # the "Mac" end of the self-test: answers TCP with mac-says-hello, echoes UDP (perl ships with macOS)
+  /usr/bin/perl -MIO::Socket::INET -MIO::Select -e '
+    my $t = IO::Socket::INET->new(LocalAddr => "127.0.0.1", LocalPort => 19757, Listen => 5, ReuseAddr => 1) or die "tcp: $!";
+    my $u = IO::Socket::INET->new(LocalAddr => "127.0.0.1", LocalPort => 19757, Proto => "udp") or die "udp: $!";
+    my $s = IO::Select->new($t, $u);
+    while (my @r = $s->can_read) { for my $h (@r) {
+      if ($h == $t) { my $c = $t->accept; my $l = <$c>; print $c "HTTP/1.0 200 OK\r\n\r\nmac-says-hello\n"; close $c; print STDERR "selftest: mac got tcp\n"; }
+      else { my $d; my $from = $u->recv($d, 2048); $u->send($d, 0, $from); print STDERR "selftest: mac echoed udp\n"; } } }' &
+  RESPONDER_PID=$!
+fi
+
+if [ "$VMNET" = 1 ]; then
+  NET=(-netdev vmnet-shared,id=n0 -device virtio-net-pci,netdev=n0)
+  SUDO=(sudo)
+  echo "vmnet networking needs administrator rights (sudo)"
+else
+  NET=(-netdev user,id=n0 -device virtio-net-pci,netdev=n0)
+  SUDO=()
+fi
+
+echo "Starting the adapter bridge VM (log: $LOG). Ctrl-A X stops it."
+set +e
+"${SUDO[@]}" "$QEMU" -accel hvf -M virt -cpu host -smp 2 -m 384 -nographic -no-reboot \
+  -kernel "$IMAGE/bridge-kernel" -initrd "$IMAGE/bridge-initramfs.img" -append "console=ttyAMA0 quiet" \
+  -fw_cfg "name=opt/framebridge/link.conf,file=$TMPD/link.conf" \
+  "${USB[@]}" "${NET[@]}" 2>&1 | tee "$LOG" | while IFS= read -r line; do
+    case "$line" in
+      *"BRIDGE: READY"*) printf '\n\033[1;32m%s\033[0m\n\n' "${line#*BRIDGE: }" ;;
+      *"BRIDGE: ERROR"*|*"SELFTEST: FAIL"*) printf '\033[1;31m%s\033[0m\n' "$line" ;;
+      *"SELFTEST: PASS"*) printf '\033[1;32m%s\033[0m\n' "$line" ;;
+      *"LIBUSB_ERROR_ACCESS"*|*"libusb"*"denied"*)
+        printf '%s\n\033[1;33mUSB access denied: run with sudo, or unplug and replug the adapter.\033[0m\n' "$line" ;;
+      *) printf '%s\n' "$line" ;;
+    esac
+  done
+rc=${PIPESTATUS[0]}
+exit "$rc"

@@ -1,0 +1,301 @@
+#!/bin/sh
+# Steam Frame adapter bridge: PID 1 of a tiny ARM64 Linux VM on the Mac.
+#
+# The Steam Frame Wireless Adapter (Realtek RTL8852CU, USB 28de:2432) has no macOS driver. QEMU hands the USB
+# device to this VM, where Linux's rtw89_8852cu drives it. The VM joins (or hosts) the Frame's dedicated 6 GHz link
+# and forwards the stream ports to the Mac, where steamac-vrhost runs:
+#
+#   Frame --6 GHz--> adapter --USB passthrough--> this VM (wlan0) --NAT--> eth0 --> Mac (steamac-vrhost :9757)
+#
+# Configuration: /run/link.conf, from QEMU fw_cfg "opt/framebridge/link.conf" (see etc/bridge/link.conf.example).
+# Status: lines starting "BRIDGE:" on the serial console (the Mac launcher shows and parses them).
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+umask 022
+
+mount -t proc proc /proc
+mount -t sysfs sys /sys
+mount -t devtmpfs dev /dev 2>/dev/null
+mkdir -p /dev/pts /var
+mount -t devpts devpts /dev/pts
+mount -t tmpfs run /run -o mode=0755
+mkdir -p /run/wpa_supplicant /run/hostapd
+ln -sfn /run /var/run
+echo 0 > /proc/sys/kernel/printk_ratelimit 2>/dev/null
+hostname framebridge
+
+say() { echo "BRIDGE: $*" > /dev/console; }
+fail() { say "ERROR $*"; }
+
+# --- configuration ---------------------------------------------------------------------------------------
+# KEY=VALUE lines; parsed, never sourced (values may hold any character but a newline)
+conf_get() {  # conf_get KEY DEFAULT
+  v=$(grep -m1 "^$1=" /run/link.conf 2>/dev/null | cut -d= -f2-)
+  v=${v%\"}; v=${v#\"}
+  [ -n "$v" ] && echo "$v" || echo "$2"
+}
+
+load_modules() {
+  while read -r m; do
+    [ -n "$m" ] || continue
+    name=$(basename "$m" .ko)
+    case "$name" in
+      mac80211_hwsim) continue ;;  # self-test only (loaded below with its parameters)
+      cfg80211) insmod "$m" ieee80211_regdom="$COUNTRY" 2>/dev/null ;;
+      *) insmod "$m" 2>/dev/null ;;
+    esac || { grep -q "^$(echo "$name" | tr - _) " /proc/modules || say "module $name did not load"; }
+  done < /etc/bridge/modules.load
+}
+
+# fw_cfg needs its module first: load it alone, read the config, then the rest (cfg80211 wants the country)
+for m in $(grep -E "/qemu_fw_cfg\.ko$" /etc/bridge/modules.load); do insmod "$m" 2>/dev/null; done
+FWC=/sys/firmware/qemu_fw_cfg/by_name/opt/framebridge/link.conf/raw
+if [ -r "$FWC" ]; then cat "$FWC" > /run/link.conf; else : > /run/link.conf; fi
+chmod 600 /run/link.conf
+
+MODE=$(conf_get MODE station)
+COUNTRY=$(conf_get COUNTRY US)
+SSID=$(conf_get SSID "")
+PSK=$(conf_get PSK "")
+KEY_MGMT=$(conf_get KEY_MGMT SAE)
+FREQ=$(conf_get FREQ "")
+CHANNEL=$(conf_get CHANNEL 37)
+WIDTH=$(conf_get WIDTH 160)
+AP_ADDR=$(conf_get AP_ADDR 10.42.0.1)
+STATIC_ADDR=$(conf_get STATIC_ADDR "")
+HOST_ADDR=$(conf_get HOST_ADDR auto)
+PORTS=$(conf_get PORTS "9757")
+DEBUG_SHELL=$(conf_get DEBUG_SHELL 1)
+SELFTEST=$(conf_get SELFTEST "")
+
+say "starting (mode $MODE, country $COUNTRY)"
+load_modules
+sysctl -qw net.ipv4.ip_forward=1
+ip link set lo up
+
+# --- uplink to the Mac -------------------------------------------------------------------------------------
+cat > /run/udhcpc.sh <<'EOF'
+#!/bin/sh
+case "$1" in
+  bound|renew)
+    ip addr flush dev "$interface"
+    ip addr add "$ip/${mask:-24}" dev "$interface"
+    if [ -n "$router" ] && [ "$interface" = eth0 ]; then
+      ip route replace default via ${router%% *} dev "$interface"
+    fi
+    echo "$ip" > /run/addr.$interface
+    [ -n "$router" ] && echo "${router%% *}" > /run/router.$interface
+    ;;
+  deconfig) ip addr flush dev "$interface"; rm -f /run/addr.$interface ;;
+esac
+exit 0
+EOF
+chmod +x /run/udhcpc.sh
+ip link set eth0 up 2>/dev/null
+if udhcpc -i eth0 -s /run/udhcpc.sh -t 10 -T 1 -n -q >/dev/null 2>&1; then
+  say "uplink eth0 $(cat /run/addr.eth0) via $(cat /run/router.eth0 2>/dev/null)"
+else
+  fail "no uplink to the Mac on eth0 (QEMU network device missing?)"
+fi
+# the Mac: QEMU user networking answers on 10.0.2.2; with vmnet the gateway is the Mac
+if [ "$HOST_ADDR" = auto ]; then
+  HOST_ADDR=10.0.2.2
+  r=$(cat /run/router.eth0 2>/dev/null)
+  case "$r" in 10.0.2.*) ;; "") ;; *) HOST_ADDR=$r ;; esac
+fi
+
+# --- debug shell (on the console from here on) and status loop ------------------------------------------------
+if [ "$DEBUG_SHELL" = 1 ]; then
+  ( while :; do setsid sh -c 'exec sh </dev/console >/dev/console 2>&1'; done ) &
+fi
+(
+  while :; do
+    sleep 10
+    if [ -d /sys/class/net/wlan0 ]; then
+      l=$(iw dev wlan0 link 2>/dev/null | grep -E 'signal|tx bitrate|rx bitrate' | tr -s ' \t' ' ' | tr '\n' ';')
+      st=$(iw dev wlan0 station dump 2>/dev/null | grep -c '^Station')
+      rx=$(cat /sys/class/net/wlan0/statistics/rx_bytes); tx=$(cat /sys/class/net/wlan0/statistics/tx_bytes)
+      say "status link[$l] stations $st rx $rx tx $tx"
+    fi
+  done
+) &
+
+# --- self-test: two simulated radios, the second one plays the Frame in its own network namespace ------------
+if [ "$SELFTEST" = hwsim ]; then
+  say "SELFTEST hwsim: simulated adapter (wlan0) and a fake Frame (wlan1, separate namespace)"
+  insmod /lib/modules/$(uname -r)/mac80211_hwsim.ko radios=2 || fail "mac80211_hwsim did not load"
+  unshare -n sh /etc/bridge/fake-frame.sh &
+  fpid=$!
+  i=0
+  until iw phy phy1 info >/dev/null 2>&1 || [ $i -gt 20 ]; do sleep 1; i=$((i + 1)); done
+  iw phy phy1 set netns "$fpid" || fail "cannot move phy1 into the fake Frame's namespace"
+  sleep 3  # its access point comes up before the bridge scans
+fi
+
+# --- the adapter --------------------------------------------------------------------------------------------
+i=0
+while [ ! -d /sys/class/net/wlan0 ] && [ $i -lt 30 ]; do sleep 1; i=$((i + 1)); done
+if [ ! -d /sys/class/net/wlan0 ]; then
+  if grep -q "^rtw89_8852cu " /proc/modules; then
+    fail "rtw89_8852cu is loaded but no wlan0: is the adapter passed through? (kernel log follows)"
+  else
+    fail "rtw89_8852cu did not load (kernel log follows)"
+  fi
+  dmesg | grep -iE "rtw89|usb|firmware" | tail -20 > /dev/console
+else
+  drv=$(basename "$(readlink /sys/class/net/wlan0/device/driver)" 2>/dev/null)
+  say "adapter wlan0 driver $drv mac $(cat /sys/class/net/wlan0/address)"
+  iw reg set "$COUNTRY" 2>/dev/null
+  if ! iw phy 2>/dev/null | grep -E "\* (59[5-9][0-9]|6[0-9][0-9][0-9])(\.0)? MHz" | grep -qv disabled; then
+    say "warning: no usable 6 GHz channel in regulatory domain $COUNTRY"
+  fi
+fi
+
+hexstr() { printf '%s' "$1" | od -An -tx1 | tr -d ' \n'; }
+safe_secret() { case "$1" in *\"*|*"
+"*) return 1 ;; esac; return 0; }
+
+# Station diagnostics (no secrets: wpa_supplicant's default output never prints keys).
+diag_station() {
+  local st res n six hit why
+  st=$(wpa_cli -p /run/wpa_supplicant -i wlan0 status 2>/dev/null | sed -n 's/^wpa_state=//p')
+  res=$(wpa_cli -p /run/wpa_supplicant -i wlan0 scan_results 2>/dev/null | tail -n +2 | grep .)
+  n=$(printf '%s\n' "$res" | grep -c .)
+  six=$(printf '%s\n' "$res" | awk -F'\t' '$2 >= 5925' | grep -c .)
+  hit=$(printf '%s\n' "$res" | WANT="$SSID" awk -F'\t' '$5 == ENVIRON["WANT"] {print $2 " MHz, " $3 " dBm, " $4; exit}')
+  say "diag: wifi state ${st:-unknown}; adapter sees $n networks ($six on 6 GHz)"
+  printf '%s\n' "$res" | awk -F'\t' 'NF >= 4 {s = $5; if (s == "") s = "(hidden)"; printf "BRIDGE: diag:   %5s MHz %4s dBm  %s  %s\n", $2, $3, s, $4}' |
+    head -30 > /dev/console
+  why=$(grep -oE "reason=[A-Z_]+|status_code=[0-9]+|CTRL-EVENT-(ASSOC-REJECT|AUTH-REJECT|SSID-TEMP-DISABLED|NETWORK-NOT-FOUND)" /run/wpa.log | sort | uniq -c | tr -s ' ' | tr '\n' ';')
+  if [ -n "$hit" ]; then
+    say "diag: the Frame's link \"$SSID\" IS visible ($hit) but joining fails: ${why:-no reason logged yet}"
+    # WPA2: reason=WRONG_KEY; WPA3-SAE: authentication rejected with status 15 (challenge failure) = wrong password
+    if grep -qE "WRONG_KEY|AUTH-REJECT.*status_code=15" /run/wpa.log; then
+      say "diag: verdict: wrong link password: run headset setup again"
+    fi
+  elif [ "$six" -eq 0 ]; then
+    say "diag: verdict: nothing at all on 6 GHz: the Frame's link is off, or this adapter is not scanning 6 GHz"
+    iw reg get 2>/dev/null | sed -n '1,3p' | sed 's/^/BRIDGE: diag:   reg /' > /dev/console
+  else
+    say "diag: verdict: 6 GHz works but \"$SSID\" is not among the networks: the Frame's link is off or uses another name"
+  fi
+}
+
+start_station() {
+  [ -n "$SSID" ] || { fail "SSID missing in link.conf"; return 1; }
+  safe_secret "$PSK" || { fail "PSK contains a double quote or newline (unsupported)"; return 1; }
+  {
+    echo "ctrl_interface=/run/wpa_supplicant"
+    echo "country=$COUNTRY"
+    echo "sae_pwe=2"
+    echo "network={"
+    echo "  ssid=$(hexstr "$SSID")"
+    echo "  scan_ssid=1"
+    case "$KEY_MGMT" in
+      SAE) echo "  key_mgmt=SAE"; echo "  ieee80211w=2"; echo "  sae_password=\"$PSK\"" ;;
+      WPA-PSK) echo "  key_mgmt=WPA-PSK"; echo "  psk=\"$PSK\"" ;;
+      NONE) echo "  key_mgmt=NONE" ;;
+      *) echo "  key_mgmt=$KEY_MGMT"; echo "  ieee80211w=1"; echo "  sae_password=\"$PSK\""; echo "  psk=\"$PSK\"" ;;
+    esac
+    [ -n "$FREQ" ] && echo "  freq_list=$FREQ" && echo "  scan_freq=$FREQ"
+    echo "}"
+  } > /run/wpa.conf
+  chmod 600 /run/wpa.conf
+  # (Alpine's build has no -f log file option: output goes to /run/wpa.log)
+  wpa_supplicant -i wlan0 -D nl80211 -c /run/wpa.conf > /run/wpa.log 2>&1 &
+  sleep 1
+  kill -0 $! 2>/dev/null || { fail "wpa_supplicant did not start:"; tail -5 /run/wpa.log > /dev/console; return 1; }
+  i=0
+  until iw dev wlan0 link 2>/dev/null | grep -q "^Connected"; do
+    sleep 1; i=$((i + 1))
+    if [ $((i % 15)) -eq 0 ]; then say "still looking for \"$SSID\" (${i}s; is the Frame on and its link up?)"; fi
+    # what the adapter actually sees, so one log says whether the link is missing, on another band, or refusing us
+    if [ $i -eq 20 ] || [ $((i % 60)) -eq 0 ]; then diag_station; fi
+  done
+  say "joined \"$SSID\": $(iw dev wlan0 link | grep -E 'freq|signal|tx bitrate' | tr -s ' \t' ' ' | tr '\n' ';')"
+  if [ -n "$STATIC_ADDR" ]; then
+    ip addr add "$STATIC_ADDR" dev wlan0
+    echo "${STATIC_ADDR%/*}" > /run/addr.wlan0
+  else
+    udhcpc -i wlan0 -s /run/udhcpc.sh -t 20 -T 1 -n -q >/dev/null 2>&1 || fail "no DHCP answer on the Frame link (set STATIC_ADDR)"
+  fi
+}
+
+start_ap() {
+  [ -n "$SSID" ] || { fail "SSID missing in link.conf"; return 1; }
+  safe_secret "$PSK" || { fail "PSK contains a double quote or newline (unsupported)"; return 1; }
+  case "$WIDTH" in
+    20) op=131; seg=$CHANNEL ;;
+    40) op=132; seg=$(( ((CHANNEL - 1) / 8) * 8 + 3 )) ;;
+    80) op=133; seg=$(( ((CHANNEL - 1) / 16) * 16 + 7 )) ;;
+    *) op=134; seg=$(( ((CHANNEL - 1) / 32) * 32 + 15 )) ;;
+  esac
+  cw=$(case "$WIDTH" in 20|40) echo 0 ;; 80) echo 1 ;; *) echo 2 ;; esac)
+  {
+    echo "interface=wlan0"
+    echo "driver=nl80211"
+    echo "ctrl_interface=/run/hostapd"
+    echo "country_code=$COUNTRY"
+    echo "ieee80211d=1"
+    echo "hw_mode=a"
+    echo "op_class=$op"
+    echo "channel=$CHANNEL"
+    echo "ieee80211ax=1"
+    echo "he_oper_chwidth=$cw"
+    echo "he_oper_centr_freq_seg0_idx=$seg"
+    echo "ssid2=$(hexstr "$SSID")"
+    echo "wpa=2"
+    echo "wpa_key_mgmt=SAE"
+    echo "rsn_pairwise=CCMP"
+    echo "ieee80211w=2"
+    echo "sae_pwe=1"
+    echo "sae_password=$PSK"
+    echo "wmm_enabled=1"
+  } > /run/hostapd.conf
+  chmod 600 /run/hostapd.conf
+  ip addr add "$AP_ADDR/24" dev wlan0
+  echo "$AP_ADDR" > /run/addr.wlan0
+  hostapd /run/hostapd.conf > /run/hostapd.log 2>&1 &
+  sleep 2
+  grep -q AP-ENABLED /run/hostapd.log ||
+    { fail "hostapd did not start the access point (6 GHz needs a country whose rules allow it):"; tail -5 /run/hostapd.log > /dev/console; return 1; }
+  net=${AP_ADDR%.*}
+  dnsmasq --keep-in-foreground --log-facility=- --user=root --no-resolv --no-hosts --port=0 --interface=wlan0 --bind-interfaces \
+    --dhcp-range=$net.100,$net.150,255.255.255.0,24h --dhcp-leasefile=/run/dnsmasq.leases \
+    --pid-file=/run/dnsmasq.pid > /run/dhcp.log 2>&1 &
+  say "hosting \"$SSID\" on 6 GHz channel $CHANNEL (${WIDTH} MHz) at $AP_ADDR"
+}
+
+start_nat() {
+  plist=$(echo "$PORTS" | tr ' ' ',')
+  cat > /run/nat.nft <<EOF
+table ip framebridge
+delete table ip framebridge
+table ip framebridge {
+  chain pre {
+    type nat hook prerouting priority dstnat;
+    iifname "wlan0" tcp dport { $plist } dnat to $HOST_ADDR
+    iifname "wlan0" udp dport { $plist } dnat to $HOST_ADDR
+  }
+  chain post {
+    type nat hook postrouting priority srcnat;
+    oifname "eth0" masquerade
+  }
+}
+EOF
+  nft -f /run/nat.nft || { fail "nft ruleset failed"; return 1; }
+}
+
+if [ -d /sys/class/net/wlan0 ]; then
+  ip link set wlan0 up
+  case "$MODE" in
+    station) start_station ;;
+    ap) start_ap ;;
+    scan) say "scan mode: networks seen on 6 GHz follow"; iw dev wlan0 scan 2>/dev/null | grep -E "^BSS|freq:|SSID:|signal:" > /dev/console ;;
+    *) fail "unknown MODE $MODE (station, ap, scan)" ;;
+  esac
+  start_nat && say "forwarding tcp+udp ${PORTS} from the Frame link to the Mac at $HOST_ADDR"
+  [ -r /run/addr.wlan0 ] && say "READY connect the Frame's WiVRn client to $(cat /run/addr.wlan0) port ${PORTS%% *}"
+fi
+
+# init must not exit
+while :; do sleep 3600; done

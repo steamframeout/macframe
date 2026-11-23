@@ -1,0 +1,267 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: steamac <steamac@local>
+Date: Sun, 22 Nov 2026 16:48:56 +0000
+Subject: [PATCH] rutabaga_gfx(macos): wmtr: hand attached Venus shm resources
+ to the executor
+
+A native Vulkan game's VR eyes (Half-Life: Alyx's ARM64 build; DXVK,
+vkd3d-proton and Windows Vulkan games under Proton) are copied by the
+guest VR runtime into buffers on the game's own Venus device, exported
+as dma-bufs. The runtime imports each into its wmtr context, so the
+kernel attaches the resource to that context. Venus blobs carry their
+memory as a shared-memory handle (virglrenderer's macOS Venus, patch
+0007); attach() now passes a duplicate of it to the executor library
+(wmtr_resource_attach), which maps it and blits the eyes from it in
+place, and detach() and the context's drop take it back
+(wmtr_resource_detach). Both symbols are optional (dlsym, ABI 2): a
+library without them gets no foreign resources and the guest reports
+the buffers as refused. The context's own blobs, handles that are not
+shared memory and repeated attaches are ignored.
+---
+ src/rutabaga_gfx/src/wmtr.rs | 146 ++++++++++++++++++++++++++++++++++-
+ 1 file changed, 145 insertions(+), 1 deletion(-)
+
+diff --git a/src/rutabaga_gfx/src/wmtr.rs b/src/rutabaga_gfx/src/wmtr.rs
+index ab73ab3..b63f3fb 100644
+--- a/src/rutabaga_gfx/src/wmtr.rs
++++ b/src/rutabaga_gfx/src/wmtr.rs
+@@ -21,6 +21,7 @@
+ 
+ use log::{error, info};
+ use std::collections::BTreeMap;
++use std::collections::BTreeSet;
+ use std::collections::VecDeque;
+ use std::ffi::c_char;
+ use std::ffi::c_void;
+@@ -33,6 +34,7 @@ use crate::rutabaga_core::RutabagaComponent;
+ use crate::rutabaga_core::RutabagaContext;
+ use crate::rutabaga_core::RutabagaResource;
+ use crate::rutabaga_os::FromRawDescriptor;
++use crate::rutabaga_os::IntoRawDescriptor;
+ use crate::rutabaga_os::SafeDescriptor;
+ use crate::rutabaga_utils::*;
+ 
+@@ -81,6 +83,12 @@ type ViewCreate = extern "C" fn(*mut c_void, u64, *mut c_void, *mut u64) -> u64;
+ type ViewRelease = extern "C" fn(*mut c_void, u64);
+ type MapPath = extern "C" fn(*mut c_void, *const c_char, *mut c_char, u64) -> *const c_char;
+ 
++/// `wmtr_resource_attach(host, resource_id, fd, size)`: a resource of another context (a Venus allocation the guest
++/// imported into this context: a native Vulkan game's VR eye buffer) and its shared memory; the library owns `fd`.
++type ResourceAttach = unsafe extern "C" fn(*mut c_void, u32, i32, u64) -> i32;
++/// `wmtr_resource_detach(host, resource_id)`: the guest detached it from this context.
++type ResourceDetach = unsafe extern "C" fn(*mut c_void, u32);
++
+ type HostAbiVersion = unsafe extern "C" fn() -> u32;
+ type HostCreate = unsafe extern "C" fn(*mut c_void, *const WmtrHostOps, *mut c_void) -> *mut c_void;
+ type HostVoid = unsafe extern "C" fn(*mut c_void);
+@@ -101,6 +109,10 @@ struct HostLib {
+     create_view: Option<ViewCreate>,
+     release_view: Option<ViewRelease>,
+     map_path: Option<MapPath>,
++    /// Optional in ABI 2 (`wmtr_resource_attach` / `wmtr_resource_detach`): None for a library without them, which
++    /// then gets no other context's resources (Vulkan VR eye buffers fail on the guest side with a clear error).
++    resource_attach: Option<ResourceAttach>,
++    resource_detach: Option<ResourceDetach>,
+ }
+ 
+ unsafe impl Send for HostLib {}
+@@ -141,6 +153,8 @@ unsafe fn bind_host_lib(name: &str, sym: impl Fn(&str) -> *mut c_void) -> Option
+         create_view: opt("wmtr_present_create_view").map(|p| std::mem::transmute::<*mut c_void, ViewCreate>(p)),
+         release_view: opt("wmtr_present_release_view").map(|p| std::mem::transmute::<*mut c_void, ViewRelease>(p)),
+         map_path: opt("wmtr_map_path").map(|p| std::mem::transmute::<*mut c_void, MapPath>(p)),
++        resource_attach: opt("wmtr_resource_attach").map(|p| std::mem::transmute::<*mut c_void, ResourceAttach>(p)),
++        resource_detach: opt("wmtr_resource_detach").map(|p| std::mem::transmute::<*mut c_void, ResourceDetach>(p)),
+         create: std::mem::transmute::<*mut c_void, HostCreate>(c),
+         kick: std::mem::transmute::<*mut c_void, HostVoid>(k),
+         destroy: std::mem::transmute::<*mut c_void, HostVoid>(d),
+@@ -262,6 +276,8 @@ pub struct WmtrContext {
+     maps: Vec<(usize, u64)>,
+     /// resource id -> (blob number, address, size) of the arena blobs the guest still holds.
+     resource_blobs: BTreeMap<u32, (u32, usize, u64)>,
++    /// Other contexts' resources attached here whose memory the executor has (`wmtr_resource_attach`).
++    foreign: BTreeSet<u32>,
+ }
+ 
+ // SAFETY: the raw pointers are only host addresses of mappings this context owns.
+@@ -358,7 +374,39 @@ impl RutabagaContext for WmtrContext {
+         result
+     }
+ 
+-    fn attach(&mut self, _resource: &mut RutabagaResource) {}
++    /// A resource of another context attached to this one: the guest runtime imported a Venus allocation (a native
++    /// Vulkan game's VR eye buffer, exported as a dma-buf) into its wmtr context. Venus blobs carry their memory as
++    /// a shared-memory handle (virglrenderer's macOS Venus, patch 0007); the executor maps a duplicate of it and
++    /// blits from it in place. This context's own blobs (ring, arenas) need nothing here.
++    fn attach(&mut self, resource: &mut RutabagaResource) {
++        if self.resource_blobs.contains_key(&resource.resource_id) || self.foreign.contains(&resource.resource_id) {
++            return;
++        }
++        let Some(attach) = self.shared.lib.resource_attach else {
++            return;
++        };
++        let Some(handle) = resource.handle.as_ref() else {
++            return;
++        };
++        if handle.handle_type != RUTABAGA_MEM_HANDLE_TYPE_SHM || resource.size == 0 {
++            return;
++        }
++        let dup = match handle.try_clone() {
++            Ok(h) => h,
++            Err(e) => {
++                error!("wmtr: resource {}: cannot duplicate its memory handle: {e}", resource.resource_id);
++                return;
++            }
++        };
++        let fd = dup.os_handle.into_raw_descriptor();
++        // SAFETY: library entry point bound by bind_host_lib; it takes ownership of `fd` (also on failure).
++        let r = unsafe { attach(self.host(), resource.resource_id, fd, resource.size) };
++        if r == 0 {
++            self.foreign.insert(resource.resource_id);
++        } else {
++            error!("wmtr: resource {}: executor refused its memory ({r})", resource.resource_id);
++        }
++    }
+ 
+     /// The guest closed its last handle of a blob. The client only does that for an arena blob with
+     /// no live range and no buffer left (an idle blob trimmed after a load peak), so the executor
+@@ -367,6 +415,13 @@ impl RutabagaContext for WmtrContext {
+     /// The address range is overlaid with fresh anonymous memory instead of unmapped: a guest that
+     /// releases a blob it still uses gets zeros on the host side, never a fault in the executor.
+     fn detach(&mut self, resource: &RutabagaResource) {
++        if self.foreign.remove(&resource.resource_id) {
++            if let Some(detach) = self.shared.lib.resource_detach {
++                // SAFETY: library entry point bound by bind_host_lib.
++                unsafe { detach(self.host(), resource.resource_id) };
++            }
++            return;
++        }
+         let Some(&(blob, ptr, size)) = self.resource_blobs.get(&resource.resource_id) else {
+             return;
+         };
+@@ -459,6 +514,13 @@ impl WmtrContext {
+ 
+ impl Drop for WmtrContext {
+     fn drop(&mut self) {
++        // other contexts' resources still attached: the executor drops its use of their memory
++        if let Some(detach) = self.shared.lib.resource_detach {
++            for id in std::mem::take(&mut self.foreign) {
++                // SAFETY: library entry point bound by bind_host_lib.
++                unsafe { detach(self.host(), id) };
++            }
++        }
+         // Retire the handle under the lock first: a wake from an executor or dispatch thread
+         // during destroy then sees 0 and never calls into the executor being freed.
+         let h = std::mem::take(&mut *self.shared.host.lock().unwrap()) as *mut c_void;
+@@ -546,6 +608,7 @@ impl Wmtr {
+             pending: Vec::new(),
+             maps: Vec::new(),
+             resource_blobs: BTreeMap::new(),
++            foreign: BTreeSet::new(),
+         }
+     }
+ }
+@@ -621,6 +684,22 @@ mod tests {
+         PROGRESS.get(slot as usize).map_or(0, |p| p.load(Ordering::SeqCst))
+     }
+ 
++    /// what the fake library's wmtr_resource_attach/detach saw: (resource id, size, fd was valid), detached ids
++    static RES_ATTACHED: Mutex<Vec<(u32, u64, bool)>> = Mutex::new(Vec::new());
++    static RES_DETACHED: Mutex<Vec<u32>> = Mutex::new(Vec::new());
++    unsafe extern "C" fn res_attach(_h: *mut c_void, id: u32, fd: i32, size: u64) -> i32 {
++        // the library owns the descriptor: a valid one, closed here
++        let valid = libc::fcntl(fd, libc::F_GETFD) >= 0;
++        if valid {
++            libc::close(fd);
++        }
++        RES_ATTACHED.lock().unwrap().push((id, size, valid));
++        0
++    }
++    unsafe extern "C" fn res_detach(_h: *mut c_void, id: u32) {
++        RES_DETACHED.lock().unwrap().push(id);
++    }
++
+     fn component(done: Arc<Mutex<Vec<u64>>>) -> (Wmtr, RutabagaFenceHandler) {
+         let handler = RutabagaFenceHandler::new(move |f: RutabagaFence| done.lock().unwrap().push(f.fence_id));
+         let lib = HostLib {
+@@ -632,6 +711,8 @@ mod tests {
+             create_view: None,
+             release_view: None,
+             map_path: None,
++            resource_attach: Some(res_attach),
++            resource_detach: Some(res_detach),
+         };
+         (Wmtr { lib, fence_handler: handler.clone() }, handler)
+     }
+@@ -952,6 +1033,69 @@ mod tests {
+         ri.ri_phys_footprint
+     }
+ 
++    /// A Venus resource the guest imports into the wmtr context hands a duplicate of its shared memory to the
++    /// executor once, other handle types and the context's own blobs do not; detach and drop give it back.
++    #[test]
++    fn foreign_shared_memory_reaches_the_executor() {
++        let _s = serial();
++        RES_ATTACHED.lock().unwrap().clear();
++        RES_DETACHED.lock().unwrap().clear();
++        let (comp, handler) = component(Arc::new(Mutex::new(Vec::new())));
++        let mut ctx = comp.new_context(handler);
++        let own = ctx.context_create_blob(71, blob(0, 1 << 20), None).unwrap();
++        // a Venus blob as virglrenderer's macOS Venus exports it: shared memory
++        let name = CString::new(format!("/wmtr-test.{}", std::process::id())).unwrap();
++        // SAFETY: plain POSIX shm calls; the name is unlinked at once.
++        let fd = unsafe {
++            let fd = libc::shm_open(name.as_ptr(), libc::O_RDWR | libc::O_CREAT | libc::O_EXCL, 0o600);
++            libc::shm_unlink(name.as_ptr());
++            assert!(fd >= 0 && libc::ftruncate(fd, 1 << 16) == 0);
++            fd
++        };
++        let shm = |id: u32, handle_type: u32, fd: i32| RutabagaResource {
++            resource_id: id,
++            // SAFETY: `fd` is a descriptor this test owns.
++            handle: Some(Arc::new(RutabagaHandle { os_handle: unsafe { SafeDescriptor::from_raw_descriptor(fd) }, handle_type })),
++            blob: true,
++            blob_mem: 0,
++            blob_flags: 0,
++            map_info: None,
++            info_2d: None,
++            info_3d: None,
++            vulkan_info: None,
++            backing_iovecs: None,
++            component_mask: 0,
++            size: 1 << 16,
++            mapping: None,
++        };
++        let mut venus = shm(72, RUTABAGA_MEM_HANDLE_TYPE_SHM, fd);
++        ctx.attach(&mut venus);
++        ctx.attach(&mut venus); // the kernel attaches once per import; a repeat must not count twice
++        assert_eq!(*RES_ATTACHED.lock().unwrap(), vec![(72, 1 << 16, true)]);
++        // a dma-buf (not shared memory), a resource without a handle and the context's own blob: nothing
++        // SAFETY: dup of a descriptor this test owns.
++        let mut other = shm(73, RUTABAGA_MEM_HANDLE_TYPE_DMABUF, unsafe { libc::dup(fd) });
++        ctx.attach(&mut other);
++        let mut bare = shm(74, RUTABAGA_MEM_HANDLE_TYPE_SHM, -1);
++        bare.handle = None;
++        ctx.attach(&mut bare);
++        let mut own_res = own;
++        ctx.attach(&mut own_res);
++        assert_eq!(RES_ATTACHED.lock().unwrap().len(), 1);
++        // the resource's own descriptor stays open for the VMM
++        // SAFETY: fcntl on a descriptor number only queries it.
++        assert!(unsafe { libc::fcntl(fd, libc::F_GETFD) } >= 0);
++        ctx.detach(&venus);
++        ctx.detach(&venus);
++        ctx.detach(&other);
++        assert_eq!(*RES_DETACHED.lock().unwrap(), vec![72]);
++        // still attached when the context goes: detached in drop
++        let mut again = shm(75, RUTABAGA_MEM_HANDLE_TYPE_SHM, unsafe { libc::dup(fd) });
++        ctx.attach(&mut again);
++        drop(ctx);
++        assert_eq!(*RES_DETACHED.lock().unwrap(), vec![72, 75]);
++    }
++
+     /// An arena blob the guest releases (detach, then the VMM's unref drops the fd) leaves this
+     /// process's footprint and the executor's blob table; the ring blob stays; the number can be
+     /// created again. Blobs are plain shared memory: no executor involved.
+-- 
+2.43.0
+

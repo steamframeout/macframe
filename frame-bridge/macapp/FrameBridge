@@ -1,0 +1,484 @@
+#!/bin/bash
+# Frame Bridge.app: the Steam Frame Wireless Adapter on an Apple Silicon Mac, with no Terminal.
+#
+# macOS has no driver for the adapter (Realtek RTL8852CU, USB 28de:2432). The app runs a tiny Linux VM (QEMU,
+# bundled, with Apple's Hypervisor.framework) that takes the adapter over USB, drives it with Linux's
+# rtw89_8852cu, joins the headset's dedicated 6 GHz link, and forwards the stream port to this Mac.
+# Everything is plain macOS dialogs (osascript). Written for the bash 3.2 that macOS ships.
+set -u
+
+APP=$(cd "$(dirname "$0")/../.." && pwd)
+RES="$APP/Contents/Resources"
+QEMU="$RES/qemu/bin/qemu-system-aarch64"
+IMG="$RES/image"
+SUP="$HOME/Library/Application Support/FrameBridge"
+LOGD="$HOME/Library/Logs/FrameBridge"
+CONF="$SUP/link.conf"
+PIDF="$SUP/bridge.pid"
+ROOTF="$SUP/bridge.root"      # present while the VM runs as root (adapter needed administrator rights)
+LOG="$LOGD/bridge.log"
+TITLE="Frame Bridge"
+VID=0x28de PID=0x2432
+ACCEL=hvf   # Apple's hypervisor; tcg (QEMU's emulator, slower) once hvf failed to start
+mkdir -p "$SUP" "$LOGD"
+chmod 700 "$SUP"
+
+# ------------------------------------------------------------------------------------------------ dialogs
+# message [buttons, comma separated] [default button] -> the button clicked ("" when the dialog was closed)
+ask() {
+  osascript - "$1" "${2:-OK}" "${3:-${2:-OK}}" "$TITLE" 2>/dev/null <<'EOF'
+on run argv
+  set AppleScript's text item delimiters to ","
+  set btns to text items of (item 2 of argv)
+  tell me to activate
+  try
+    set r to display dialog (item 1 of argv) buttons btns default button (item 3 of argv) with title (item 4 of argv)
+    return button returned of r
+  on error
+    return ""
+  end try
+end run
+EOF
+}
+# message default [hidden] -> text typed ("" and status 1 on Cancel)
+input() {
+  osascript - "$1" "$2" "${3:-}" "$TITLE" 2>/dev/null <<'EOF'
+on run argv
+  tell me to activate
+  if (item 3 of argv) is "hidden" then
+    set r to display dialog (item 1 of argv) default answer (item 2 of argv) with hidden answer buttons {"Cancel", "OK"} default button "OK" with title (item 4 of argv)
+  else
+    set r to display dialog (item 1 of argv) default answer (item 2 of argv) buttons {"Cancel", "OK"} default button "OK" with title (item 4 of argv)
+  end if
+  return text returned of r
+end run
+EOF
+}
+# prompt item1 item2 ... -> chosen item ("" on Cancel)
+choose() {
+  osascript - "$TITLE" "$@" 2>/dev/null <<'EOF'
+on run argv
+  set t to item 1 of argv
+  set p to item 2 of argv
+  set opts to items 3 thru -1 of argv
+  tell me to activate
+  set r to choose from list opts with title t with prompt p default items {item 1 of opts} OK button name "Go" cancel button name "Quit"
+  if r is false then return ""
+  return item 1 of r
+end run
+EOF
+}
+notify() {
+  osascript - "$1" "$TITLE" >/dev/null 2>&1 <<'EOF'
+on run argv
+  display notification (item 1 of argv) with title (item 2 of argv)
+end run
+EOF
+}
+# run a shell command line as root (the standard macOS administrator password dialog)
+as_admin() {
+  osascript - "$1" "$2" 2>/dev/null <<'EOF'
+on run argv
+  tell me to activate
+  do shell script (item 1 of argv) with prompt (item 2 of argv) with administrator privileges
+end run
+EOF
+}
+
+# ------------------------------------------------------------------------------------------------ checks
+first_checks() {
+  # macOS runs a just-downloaded app from a temporary read-only copy until it is moved
+  case "$APP" in
+    */AppTranslocation/*)
+      ask "Move Frame Bridge to your Applications folder first (drag it there in Finder), then open it again from Applications." "Quit" >/dev/null
+      exit 0 ;;
+  esac
+  if [ "$(uname -m)" != arm64 ]; then
+    ask "Frame Bridge needs a Mac with Apple silicon (M1 or later)." "Quit"; exit 1
+  fi
+  local major; major=$(sw_vers -productVersion | cut -d. -f1)
+  if [ "${major:-0}" -lt 15 ]; then
+    ask "Frame Bridge needs macOS 15 Sequoia or later." "Quit"; exit 1
+  fi
+  # downloaded apps are quarantined; once this app was allowed to open, its own bundled tools may run too
+  xattr -dr com.apple.quarantine "$RES" 2>/dev/null
+  if [ ! -x "$QEMU" ] || [ ! -f "$IMG/bridge-kernel" ] || [ ! -f "$IMG/bridge-initramfs.img" ]; then
+    ask "This copy of Frame Bridge is incomplete (missing parts inside the app). Download it again." "Quit"; exit 1
+  fi
+  if [ -f "$IMG/SHA256SUMS" ] && ! (cd "$IMG" && shasum -a 256 -c SHA256SUMS >/dev/null 2>&1); then
+    ask "This copy of Frame Bridge is damaged (a checksum does not match). Download it again." "Quit"; exit 1
+  fi
+}
+
+running_pid() {
+  [ -f "$PIDF" ] || return 1
+  local p; p=$(cat "$PIDF" 2>/dev/null)
+  [ -n "$p" ] && ps -p "$p" -o comm= 2>/dev/null | grep -q qemu && { echo "$p"; return 0; }
+  rm -f "$PIDF" "$ROOTF"
+  return 1
+}
+adapter_present() { ioreg -p IOUSB -l -w0 2>/dev/null | grep -q '"idProduct" = 9266'; }
+conf_value() { grep -m1 "^$1=" "$CONF" 2>/dev/null | cut -d= -f2-; }
+
+# ------------------------------------------------------------------------------------------------ the VM
+# start_vm CONFIG_FILE with_adapter(0/1) as_root(0/1): starts QEMU in the background, writes the pid file
+start_vm() {
+  local conf=$1 usb=$2 root=$3 accel=${4:-hvf}
+  local priv; priv=$(mktemp -d "${TMPDIR:-/tmp}/framebridge.XXXXXX")
+  cp "$conf" "$priv/link.conf"; chmod 600 "$priv/link.conf"
+  : > "$LOG"
+  local cpu=host; [ "$accel" = tcg ] && cpu=max
+  local args=(-accel "$accel" -M virt -cpu "$cpu" -smp 2 -m 384 -display none -monitor none -no-reboot
+    -serial "file:$LOG" -kernel "$IMG/bridge-kernel" -initrd "$IMG/bridge-initramfs.img"
+    -append "console=ttyAMA0 quiet" -fw_cfg "name=opt/framebridge/link.conf,file=$priv/link.conf"
+    -device qemu-xhci,id=xhci -netdev user,id=n0 -device virtio-net-pci,netdev=n0,romfile=)
+  [ "$usb" = 1 ] && args+=(-device "usb-host,bus=xhci.0,vendorid=$VID,productid=$PID")
+  if [ "$root" = 1 ]; then
+    # one shell line for the administrator dialog; every argument quoted
+    local line="" a
+    for a in "$QEMU" "${args[@]}"; do line="$line '${a//\'/\'\\\'\'}'"; done
+    line="$line >>'$LOGD/qemu.out' 2>&1 </dev/null & echo \$! > '$PIDF'"
+    as_admin "$line" "Frame Bridge needs administrator rights to take over the Steam Frame Wireless Adapter." ||
+      return 1
+    touch "$ROOTF"
+  else
+    nohup "$QEMU" "${args[@]}" >"$LOGD/qemu.out" 2>&1 </dev/null &
+    echo $! > "$PIDF"
+    rm -f "$ROOTF"
+  fi
+  # the VM reads its copy of the configuration at boot
+  ( sleep 30; rm -rf "$priv" ) >/dev/null 2>&1 &
+  return 0
+}
+
+stop_vm() {
+  local p; p=$(running_pid) || return 0
+  if [ -f "$ROOTF" ]; then
+    as_admin "kill $p; sleep 1; kill -9 $p 2>/dev/null; true" "Frame Bridge needs administrator rights to stop the bridge." || return 1
+  else
+    kill "$p" 2>/dev/null; sleep 1; kill -9 "$p" 2>/dev/null
+  fi
+  rm -f "$PIDF" "$ROOTF"
+}
+
+# wait_for SECONDS PATTERN...: first log line (BRIDGE:/SELFTEST:) matching a pattern; "" on timeout or VM exit
+wait_for() {
+  local secs=$1; shift
+  local i=0 hit
+  while [ $i -lt "$secs" ]; do
+    for pat in "$@"; do
+      hit=$(grep -a -m1 -E "$pat" "$LOG" "$LOGD/qemu.out" 2>/dev/null | head -1)
+      [ -n "$hit" ] && { echo "$hit"; return 0; }
+    done
+    running_pid >/dev/null || return 1
+    sleep 1; i=$((i + 1))
+  done
+  return 1
+}
+
+# Wait for the link: READY or ERROR end it early. A "still looking" line alone is not an answer: the headset's hidden
+# link can take a minute to show up in a 6 GHz scan, so it is reported only once the whole wait has passed.
+wait_link() {
+  local hit
+  hit=$(wait_for "$1" "BRIDGE: READY" "BRIDGE: ERROR") && { echo "$hit"; return 0; }
+  running_pid >/dev/null || return 1
+  grep -a -m1 "still looking" "$LOG" 2>/dev/null
+}
+
+vm_failed_reason() {
+  local q; q=$(tail -5 "$LOGD/qemu.out" 2>/dev/null | tr '\n' ' ')
+  case "$q" in
+    *LIBUSB_ERROR_ACCESS*|*"Permission denied"*|*"libusb"*denied*) echo usb-access ;;
+    *hvf*|*HV_*|*"hypervisor"*) echo hvf ;;
+    *) echo "other:$q" ;;
+  esac
+}
+
+# ------------------------------------------------------------------------------------------------ actions
+do_test() {
+  stop_vm
+  local b
+  b=$(ask "This checks that the bridge can run on this Mac. No headset or adapter is needed: the bridge simulates a headset and its wireless link inside itself.
+
+It takes about a minute." "Cancel,Start Test" "Start Test")
+  [ "$b" = "Start Test" ] || return
+  local t; t=$(mktemp "${TMPDIR:-/tmp}/framebridge-test.XXXXXX")
+  printf 'MODE=station\nCOUNTRY=US\nSSID=FrameBridge-SelfTest\nPSK=selftest-%s\nKEY_MGMT=SAE\nSELFTEST=hwsim\nPORTS=19757\nDEBUG_SHELL=0\n' \
+    "$RANDOM$RANDOM" > "$t"
+  # the Mac end of the test: answers TCP, echoes UDP (perl ships with macOS; TCP only through nc otherwise)
+  local resp=
+  if [ -x /usr/bin/perl ]; then
+    /usr/bin/perl -MIO::Socket::INET -MIO::Select -e '
+      my $t = IO::Socket::INET->new(LocalAddr => "127.0.0.1", LocalPort => 19757, Listen => 5, ReuseAddr => 1) or die;
+      my $u = IO::Socket::INET->new(LocalAddr => "127.0.0.1", LocalPort => 19757, Proto => "udp") or die;
+      my $s = IO::Select->new($t, $u);
+      while (my @r = $s->can_read(200)) { for my $h (@r) {
+        if ($h == $t) { my $c = $t->accept; my $l = <$c>; print $c "HTTP/1.0 200 OK\r\n\r\nmac-says-hello\n"; close $c; }
+        else { my $d; my $from = $u->recv($d, 2048); $u->send($d, 0, $from); } } }' >/dev/null 2>&1 &
+    resp=$!
+  else
+    ( for i in 1 2 3; do printf 'HTTP/1.0 200 OK\r\n\r\nmac-says-hello\n' | nc -l 127.0.0.1 19757 >/dev/null 2>&1; done ) &
+    resp=$!
+  fi
+  local accel=hvf
+  start_vm "$t" 0 0 hvf
+  notify "Testing… about a minute."
+  local out
+  if ! wait_for 25 "BRIDGE: starting" >/dev/null; then
+    # no boot at all with the hypervisor: try the (slower) emulator before calling it broken
+    stop_vm; accel=tcg; ACCEL=tcg
+    start_vm "$t" 0 0 tcg
+    wait_for 90 "BRIDGE: starting" >/dev/null
+  fi
+  out=$(wait_for 180 "SELFTEST: done" "SELFTEST: FAIL" "BRIDGE: ERROR")
+  sleep 2
+  local tcp udp
+  tcp=$(grep -a "SELFTEST: PASS tcp" "$LOG" | head -1)
+  udp=$(grep -a "SELFTEST: PASS udp" "$LOG" | head -1)
+  stop_vm
+  kill "$resp" 2>/dev/null; wait "$resp" 2>/dev/null
+  rm -f "$t"
+  local note=""
+  [ "$accel" = tcg ] && note="
+
+Note: Apple's hypervisor did not start, so the test used the slower emulator. The bridge still works this way, more slowly."
+  if [ -n "$tcp" ] && [ -n "$udp" ]; then
+    ask "Test passed. This Mac can run the bridge.
+
+✓ the bridge started and joined a simulated headset's encrypted link
+✓ data reached this Mac and came back (TCP and UDP)$note
+
+Next: Set up from the headset." "OK"
+  elif [ -n "$tcp" ]; then
+    ask "Test mostly passed: TCP works. UDP was not checked (Perl is missing on this Mac).$note" "OK"
+  else
+    b=$(ask "Test failed. The details are in the log." "Show Log,OK" "Show Log")
+    [ "$b" = "Show Log" ] && open -e "$LOG"
+  fi
+}
+
+do_setup() {
+  local b
+  b=$(ask "Frame Bridge reads the headset's wireless link settings over your Wi-Fi network. It only reads; it changes nothing on the headset.
+
+On the headset first:
+1. Settings > System > Enable Developer Mode
+2. Settings > Developer > Set User Password
+
+Keep the headset on and on the same Wi-Fi network as this Mac." "Cancel,Continue" "Continue")
+  [ "$b" = Continue ] || return
+  local host pw
+  host=$(input "The headset's name or address on your network (Valve's default name is frame):" "frame") || return
+  [ -n "$host" ] || return
+  pw=$(input "The headset's developer-mode password (the one you set under Set User Password):" "" hidden) || return
+  [ -n "$pw" ] || return
+
+  notify "Reading the headset's settings…"
+  local work; work=$(mktemp -d "${TMPDIR:-/tmp}/framebridge-probe.XXXXXX")
+  chmod 700 "$work"
+  printf '#!/bin/sh\nprintf "%%s\\n" "$FB_PW"\n' > "$work/askpass"; chmod 700 "$work/askpass"
+  local sshopts=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -o NumberOfPasswordPrompts=1
+                 -o "UserKnownHostsFile=\"$SUP/known_hosts\"")
+  local tried="" ok=0 h rc
+  for h in "$host" "$host.local"; do
+    case "$h" in *.local.local) continue ;; esac
+    tried="$tried $h"
+    FB_PW="$pw" SSH_ASKPASS="$work/askpass" SSH_ASKPASS_REQUIRE=force DISPLAY=:0 \
+      scp -q "${sshopts[@]}" "$RES/probe-on-frame.sh" "steamos@$h:/tmp/framebridge-probe.sh" </dev/null \
+      >"$work/scp.out" 2>&1
+    rc=$?
+    if [ $rc -eq 0 ]; then
+      # sudo on the headset reads the same password from stdin
+      printf '%s\n' "$pw" | FB_PW="$pw" SSH_ASKPASS="$work/askpass" SSH_ASKPASS_REQUIRE=force DISPLAY=:0 \
+        ssh "${sshopts[@]}" "steamos@$h" \
+        'sudo -S -p "" bash /tmp/framebridge-probe.sh; rc=$?; rm -f /tmp/framebridge-probe.sh; exit $rc' \
+        >"$work/report.txt" 2>"$work/ssh.err"
+      rc=$?
+      ok=1
+      break
+    fi
+    grep -qiE "permission denied|authentication" "$work/scp.out" && break
+  done
+  unset pw
+
+  if [ $ok = 0 ]; then
+    if grep -qiE "permission denied|authentication" "$work/scp.out"; then
+      ask "The headset refused the password. Check the developer-mode password (Settings > Developer > Set User Password) and try again." "OK"
+    else
+      ask "Couldn't reach the headset (tried:$tried).
+
+Make sure it is on, awake, on the same Wi-Fi network as this Mac, and that Developer Mode is enabled. You can also type its IP address (Settings > Internet on the headset)." "OK"
+    fi
+    rm -rf "$work"; return
+  fi
+  if grep -qi "incorrect password\|sudo:" "$work/ssh.err"; then
+    ask "The headset accepted the login but not the password for administrator access (sudo). Try again with the developer-mode password." "OK"
+    rm -rf "$work"; return
+  fi
+
+  # report without the link.conf block (which holds the passphrase)
+  tr -d '\r' < "$work/report.txt" | sed '/^---- link.conf ----$/,/^---- end ----$/d' > "$LOGD/headset-report.txt"
+  local conf; conf=$(tr -d '\r' < "$work/report.txt" | sed -n '/^---- link.conf ----$/,/^---- end ----$/p' | sed '1d;$d')
+  rm -rf "$work"
+  if printf '%s\n' "$conf" | grep -q '^SSID=.\+'; then
+    ( umask 077; printf '%s\nDEBUG_SHELL=0\n' "$conf" > "$CONF" )
+    local ssid; ssid=$(conf_value SSID)
+    b=$(ask "Found the headset's wireless link: \"$ssid\".
+
+Settings saved. Plug the Steam Frame Wireless Adapter into this Mac and connect." "Later,Connect Now" "Connect Now")
+    [ "$b" = "Connect Now" ] && do_connect
+  else
+    b=$(ask "The headset's dedicated wireless link isn't running right now, so there was nothing to read.
+
+The link is only on while the headset is connecting to a computer (Steam menu in the VR dashboard, then a computer's name). Try again then, or send the report to whoever is helping you (it contains no passwords)." "Show Report,OK" "Show Report")
+    [ "$b" = "Show Report" ] && open -e "$LOGD/headset-report.txt"
+  fi
+}
+
+report_ready() {
+  local addr b; addr=$(echo "$1" | sed -n 's/.*client to \([0-9.]*\) port \([0-9]*\).*/\1/p')
+  b=$(ask "Connected to the headset over the wireless adapter.
+
+Stream address for the headset's VR client (WiVRn):
+    $addr   (port 9757)
+
+The bridge keeps running in the background. Open Frame Bridge again to stop it." "Stop Bridge,Done" "Done")
+  [ "$b" = "Stop Bridge" ] && stop_vm
+}
+report_looking() {
+  local b hit
+  while :; do
+    b=$(ask "The adapter works, but it hasn't found the headset's wireless link yet.
+
+Make sure the headset is on and nearby. The bridge keeps looking in the background, and Frame Bridge tells you when it connects." "Stop Bridge,Show Log,Keep Looking" "Keep Looking")
+    case "$b" in
+      "Stop Bridge") stop_vm; return ;;
+      "Show Log") open -e "$LOG"; return ;;
+    esac
+    notify "Still looking for the headset…"
+    hit=$(wait_for 120 "BRIDGE: READY" "BRIDGE: ERROR")
+    case "$hit" in
+      *"BRIDGE: READY"*) report_ready "$hit"; return ;;
+      *"BRIDGE: ERROR"*) ask "The bridge reported a problem:
+
+${hit#*BRIDGE: ERROR }" "OK" >/dev/null; return ;;
+    esac
+    running_pid >/dev/null || { ask "The bridge stopped. The log has the details." "OK" >/dev/null; return; }
+  done
+}
+
+do_connect() {
+  local b
+  if [ ! -f "$CONF" ]; then
+    b=$(ask "First, Frame Bridge needs the headset's wireless link settings." "Cancel,Set Up Now" "Set Up Now")
+    [ "$b" = "Set Up Now" ] && do_setup
+    return
+  fi
+  while ! adapter_present; do
+    b=$(ask "Plug the Steam Frame Wireless Adapter into a USB port on this Mac (USB 3 works best), then click Retry." "Cancel,Retry" "Retry")
+    [ "$b" = Retry ] || return
+    sleep 2
+  done
+  stop_vm
+  notify "Starting the bridge…"
+  start_vm "$CONF" 1 0 "$ACCEL" || return
+  local hit
+  hit=$(wait_link 120)
+  # QEMU keeps running when it may not open the adapter; the bridge then reports no wlan0
+  local usb_denied=0
+  if grep -qaiE "LIBUSB_ERROR_ACCESS|libusb.*(denied|ACCESS)|failed to open host usb|claim.*interface" "$LOGD/qemu.out" 2>/dev/null; then
+    usb_denied=1
+  elif [ -z "$hit" ] && ! running_pid >/dev/null && [ "$(vm_failed_reason)" = usb-access ]; then
+    usb_denied=1
+  fi
+  if [ $usb_denied = 1 ]; then
+    stop_vm
+    b=$(ask "macOS needs your permission for Frame Bridge to take over the adapter (your Mac's administrator password)." "Cancel,Allow" "Allow")
+    [ "$b" = Allow ] || return
+    start_vm "$CONF" 1 1 "$ACCEL" || return
+    hit=$(wait_link 120)
+  elif [ -z "$hit" ] && ! running_pid >/dev/null && [ "$(vm_failed_reason)" = hvf ]; then
+    ACCEL=tcg
+    start_vm "$CONF" 1 0 tcg || return
+    hit=$(wait_link 240)
+  fi
+  case "$hit" in
+    *"BRIDGE: READY"*) report_ready "$hit" ;;
+    *"still looking"*) report_looking ;;
+    *"BRIDGE: ERROR"*)
+      local msg; msg=$(printf '%s' "${hit#*BRIDGE: ERROR }" | tr -d '\r')
+      stop_vm
+      case "$msg" in
+        *"no wlan0"*|*"did not load"*)
+          b=$(ask "The bridge couldn't take over the wireless adapter.
+
+Unplug the adapter, plug it back in, and try again. If that doesn't help, try again with administrator access (macOS asks for your password)." "Cancel,Show Log,Try with Administrator Access" "Try with Administrator Access")
+          [ "$b" = "Show Log" ] && open -e "$LOG"
+          if [ "$b" = "Try with Administrator Access" ]; then
+            start_vm "$CONF" 1 1 "$ACCEL" || return
+            hit=$(wait_link 120)
+            case "$hit" in
+              *"BRIDGE: READY"*) report_ready "$hit" ;;
+              *"still looking"*) report_looking ;;
+              *) b=$(ask "The bridge still couldn't use the adapter. The log has the details." "Show Log,OK" "Show Log")
+                 [ "$b" = "Show Log" ] && open -e "$LOG"; stop_vm ;;
+            esac
+          fi ;;
+        *"SSID missing"*|*"PSK"*)
+          ask "The saved headset settings are incomplete. Run \"Set up from the headset\" again." "OK" >/dev/null ;;
+        *"6 GHz"*|*"regulatory"*)
+          ask "The adapter can't use 6 GHz with the current country setting. Run \"Set up from the headset\" again so the country matches the headset's." "OK" >/dev/null ;;
+        *)
+          b=$(ask "The bridge reported a problem:
+
+$msg" "Show Log,OK" "Show Log")
+          [ "$b" = "Show Log" ] && open -e "$LOG" ;;
+      esac ;;
+    *)
+      b=$(ask "The bridge didn't start. The details are in the log." "Show Log,OK" "Show Log")
+      [ "$b" = "Show Log" ] && open -e "$LOGD/qemu.out" "$LOG"
+      stop_vm ;;
+  esac
+}
+
+do_status() {
+  local st ready
+  ready=$(grep -a "BRIDGE: READY" "$LOG" | tail -1 | sed -n 's/.*client to \([0-9.]*\) port.*/\1/p')
+  st=$(grep -a "BRIDGE: status" "$LOG" | tail -1 | sed 's/.*status //')
+  local sig; sig=$(echo "$st" | sed -n 's/.*signal: \(-\{0,1\}[0-9]*\) dBm.*/\1/p')
+  local b; b=$(ask "The bridge is running.
+
+Headset link: ${ready:-not connected yet}
+Signal: ${sig:+$sig dBm}${sig:-unknown}
+
+WiVRn server address for the headset: ${ready:-(waiting for the link)}" "Stop Bridge,Show Log,OK" "OK")
+  [ "$b" = "Stop Bridge" ] && stop_vm
+  [ "$b" = "Show Log" ] && open -e "$LOG"
+}
+
+# ------------------------------------------------------------------------------------------------ menu
+first_checks
+while :; do
+  if running_pid >/dev/null; then
+    c=$(choose "The wireless adapter bridge is running." "Show connection status" "Stop the bridge" "Show the log")
+    case "$c" in
+      "Show connection status") do_status ;;
+      "Stop the bridge") stop_vm; notify "Bridge stopped." ;;
+      "Show the log") open -e "$LOG" ;;
+      *) exit 0 ;;
+    esac
+  else
+    if [ -f "$CONF" ]; then
+      c=$(choose "Use the Steam Frame Wireless Adapter with this Mac." "Connect the wireless adapter" "Set up from the headset again" "Test this Mac (no headset needed)" "Show the log")
+    else
+      c=$(choose "Use the Steam Frame Wireless Adapter with this Mac. Start with the test, then set up from the headset." "Test this Mac (no headset needed)" "Set up from the headset" "Connect the wireless adapter")
+    fi
+    case "$c" in
+      "Connect the wireless adapter") do_connect ;;
+      "Set up from the headset"*) do_setup ;;
+      "Test this Mac"*) do_test ;;
+      "Show the log") [ -f "$LOG" ] && open -e "$LOG" ;;
+      *) exit 0 ;;
+    esac
+  fi
+done

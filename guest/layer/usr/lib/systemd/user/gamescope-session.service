@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: MIT
+# Derived from Valve Corporation's deckard-steamvr-session (MIT)
+# steamac: full replacement of the stock deckard-steamvr-session unit.
+# Differences from stock: no PartOf=steamvr.service (SteamVR is masked in the
+# VM), optional /etc/steamac/gamescope-session.conf overrides, and the steamac
+# /usr/lib/steamos/gamescope-session (DRM backend instead of OpenVR).
+[Unit]
+Description=Gamescope Session (steamac VM)
+Before=graphical-session.target
+PartOf=graphical-session.target
+Wants=graphical-session-pre.target
+After=graphical-session-pre.target
+RefuseManualStart=yes
+# The XDG desktop portal frontend relies on the value of $XDG_CURRENT_DESKTOP to
+# decide which backends to load, so its startup should be delayed until after
+# the session is running.
+Before=xdg-desktop-portal.service
+
+[Service]
+Slice=session.slice
+# The DRM backend opens the KMS device and builds Vulkan pipelines over Venus,
+# which takes longer than the stock 5 s on first start.
+TimeoutStartSec=60
+# Stock: 10 s. At system shutdown / session end, logind revokes the session's
+# DRM and evdev fds as soon as sddm-helper (the session leader) exits, which
+# happens in the same instant the session scope is signalled. gamescope's DRM
+# backend then sits in its event loop waiting for the seat to come back and
+# never acts on SIGTERM (reproduced with `loginctl terminate-session`: main
+# thread in ppoll, killed only by the timeout), so every power-off waited the
+# full 10 s. Nothing is lost by killing it: steam.service is ordered after this
+# unit, so Steam has already been stopped (and saved its state) before
+# gamescope gets SIGTERM; Xwayland is SIGKILLed with KillMode=mixed anyway.
+TimeoutStopSec=3
+ExecStart=/usr/lib/steamos/gamescope-session
+Type=notify
+NotifyAccess=all
+
+# Make Steam's srt-logger write to the journal with it's own prefixes
+Environment=SRT_LOG_TO_JOURNAL=1
+
+# Mesa variables (steamac: Venus/zink, see /usr/share/deckard/mesavars.sh)
+EnvironmentFile=/usr/share/deckard/mesavars.sh
+EnvironmentFile=-/etc/steamac/gamescope-session.conf
+
+# Xwayland runs in -core mode and dumps core on SIGTERM, hence mixed.
+KillMode=mixed

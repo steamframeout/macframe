@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+# Build everything steamac needs, in dependency order. Each step is idempotent and can be
+# re-run on its own (see README.md). Needs: macOS 15+ on Apple silicon, Xcode, Homebrew,
+# rustup, OrbStack (or another Docker with arm64 + privileged containers).
+#
+#   ./build.sh            host stack, guest kernel, guest Venus Mesa, disk image
+#   ./build.sh host       only the macOS side (MoltenVK, KosmicKrisp on macOS 26+, libepoxy,
+#                         virglrenderer, libkrun, launcher)
+#   ./build.sh guest      only the guest side (kernel, rootfs, Mesa, initramfs, layer, disk)
+#   ./build.sh vrhost     the experimental VR host (docs/vr.md; needs cmake + ninja), then
+#                         re-run host/launcher/build.sh to bundle it. Not part of `all`: an app
+#                         built without it has no VR host and is otherwise unchanged.
+#   ./build.sh dxmt       the DXMT graphics path (host/dxmt/build.sh: host library + guest payload)
+set -euo pipefail
+cd "$(dirname "${BASH_SOURCE[0]}")"
+
+host() {
+    host/moltenvk/build.sh
+    # KosmicKrisp needs Metal 4 (macOS 26+); without it the app offers MoltenVK only.
+    if (($(sw_vers -productVersion | cut -d. -f1) >= 26)); then
+        host/kosmickrisp/build.sh
+    else
+        echo "KosmicKrisp skipped: needs macOS 26 or newer" >&2
+    fi
+    host/libepoxy/build.sh
+    host/virglrenderer/build.sh
+    host/libkrun/build.sh
+    host/launcher/build.sh
+}
+
+guest() {
+    guest/kernel/build.sh
+    scripts/build-image.sh builder rootfs      # verified OTA rootfs, needed by the Mesa verify step
+    guest/mesa/build.sh
+    scripts/build-image.sh initramfs layer disk check
+}
+
+case ${1:-all} in
+    host) host ;;
+    guest) guest ;;
+    vrhost) host/vrhost/build.sh ;;
+    all) host; guest ;;
+    dxmt) host/dxmt/build.sh ;;
+    *) echo "usage: $0 [all|host|guest|vrhost|dxmt]" >&2; exit 64 ;;
+esac

@@ -1,0 +1,29 @@
+#!/bin/bash
+# frame-probe: read the Steam Frame's dedicated 6 GHz link settings over SSH and write the bridge's link.conf.
+#
+#   frame-probe [steamos@]HOST   (HOST: the headset's address or "frame.local"; developer mode must be on)
+#
+# Enable SSH on the headset: Settings > System > Enable Developer Mode (set a password there). The probe is
+# read-only on the headset. It needs sudo there (the link passphrase is root-only), so it asks for that password.
+set -euo pipefail
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+TARGET=${1:-steamos@frame.local}
+case "$TARGET" in *@*) ;; *) TARGET="steamos@$TARGET" ;; esac
+OUT="$HOME/Library/Application Support/FrameBridge/link.conf"
+mkdir -p "$(dirname "$OUT")"
+REPORT=$(mktemp "${TMPDIR:-/tmp}/frame-probe.XXXXXX")
+trap 'rm -f "$REPORT"' EXIT
+
+echo "Copying the probe to $TARGET ..."
+scp -q "$HERE/../frame/probe-on-frame.sh" "$TARGET:/tmp/framebridge-probe.sh"
+echo "Running it (sudo on the headset asks for your developer-mode password) ..."
+ssh -t "$TARGET" 'sudo bash /tmp/framebridge-probe.sh; rm -f /tmp/framebridge-probe.sh' | tr -d '\r' | tee "$REPORT" |
+  sed '/^---- link.conf ----$/,/^---- end ----$/d'
+
+CONF=$(sed -n '/^---- link.conf ----$/,/^---- end ----$/p' "$REPORT" | sed '1d;$d')
+if ! printf '%s\n' "$CONF" | grep -q '^SSID=.\+'; then
+  echo; echo "No link settings found (see the report above). $OUT was not changed."; exit 1
+fi
+umask 077
+printf '%s\n' "$CONF" > "$OUT"
+echo; echo "Wrote $OUT (mode 600). Start the bridge with: frame-adapter-bridge"

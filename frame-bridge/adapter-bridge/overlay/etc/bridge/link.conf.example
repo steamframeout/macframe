@@ -1,0 +1,34 @@
+# Steam Frame adapter bridge: link configuration (KEY=VALUE, one per line, no shell syntax).
+# The Mac launcher hands this file to the bridge VM. frame-probe.sh fills it from the headset.
+
+# station: the headset broadcasts its dedicated 6 GHz link and the adapter joins it (what Steam on Linux does)
+# ap:      the adapter broadcasts the link and the headset joins it
+# scan:    only list the 6 GHz networks the adapter sees (first run, to find the Frame's link)
+MODE=station
+
+# Regulatory domain of where you are. It must allow 6 GHz (US, CA, GB, DE, FR, JP, KR, AU, ...); do not pick a
+# country you are not in to get 6 GHz.
+COUNTRY=US
+
+# The Frame's dedicated link, as frame-probe.sh reports it
+SSID=
+PSK=
+# SAE (WPA3, required on 6 GHz), WPA-PSK, or NONE
+KEY_MGMT=SAE
+# station: optional frequency in MHz to scan only that channel (faster join), e.g. 6115
+FREQ=
+# ap: 6 GHz channel number (1, 5, ... 233) and width in MHz (20, 40, 80, 160)
+CHANNEL=37
+WIDTH=160
+AP_ADDR=10.42.0.1
+
+# station: fixed address on the Frame link instead of DHCP (e.g. 10.42.0.2/24)
+STATIC_ADDR=
+
+# The Mac as seen from the bridge: auto (QEMU user network 10.0.2.2, or the vmnet gateway)
+HOST_ADDR=auto
+# ports forwarded from the Frame link to the Mac (TCP and UDP): WiVRn
+PORTS=9757
+
+# 1: a root shell on the bridge console (the launcher's terminal)
+DEBUG_SHELL=1

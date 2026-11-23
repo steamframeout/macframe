@@ -1,0 +1,42 @@
+#!/bin/bash
+# steamac: ExecStartPre of steam.service, after the stock step that copies
+# /usr/share/deckard/steam_launch_wrapper_env_defaults.txt to
+# $XDG_RUNTIME_DIR/steam/env/gfx.txt (read by steam-launch-wrapper per game).
+#
+# The launcher budgets unified RAM for the VM, GPU and macOS (STEAMAC-S).
+# virglrenderer clamps the Venus heaps for every guest process. Match the stock
+# per-game VRAM layer to that budget instead of its fixed 4096 MiB: it must not
+# inflate smaller heaps or hide the extra GPU memory available on larger Macs.
+set -euo pipefail
+
+gfx=${XDG_RUNTIME_DIR:?}/steam/env/gfx.txt
+[[ -f $gfx ]] || exit 0
+
+# VKD3D_DISABLE_EXTENSIONS belongs in steam.service's inherited environment,
+# not gfx.txt: the launch wrapper overwrites inherited variables from this file.
+# Leave explicit stock/user lists alone, including their precedence over titles.
+budget=
+for word in $(cat /proc/cmdline); do
+    case $word in steamac.gpu_mib=*) budget=${word#*=} ;; esac
+done
+case $budget in
+    ''|*[!0-9]*) budget= ;;
+    *) if (( ${#budget} > 5 )) || (( 10#$budget < 256 || 10#$budget > 16384 )); then budget=; fi ;;
+esac
+
+# Bounded: a wedged virtio-gpu fence must never block steam.service start.
+summary=$(timeout -k 2 10 vulkaninfo --summary 2>/dev/null) || summary=
+id=$(printf '%s\n' "$summary" | awk '
+    $1 == "vendorID" { v = $3 }
+    $1 == "deviceID" { d = $3 }
+    $1 == "driverID" && $3 == "DRIVER_ID_MESA_VENUS" { print v ":" d; exit }')
+if [[ -z $id ]]; then
+    echo "steam-gfx-env: no Venus device found, leaving VK_VRAM_REPORT_LIMIT_DEVICE_ID as shipped" >&2
+    exit 0
+fi
+sed -i "s/^VK_VRAM_REPORT_LIMIT_DEVICE_ID=.*/VK_VRAM_REPORT_LIMIT_DEVICE_ID=$id/" "$gfx"
+if [[ -n $budget ]]; then
+    sed -i "s/^VK_VRAM_REPORT_LIMIT_HEAP_SIZE=.*/VK_VRAM_REPORT_LIMIT_HEAP_SIZE=$budget/" "$gfx"
+    echo "steam-gfx-env: VK_VRAM_REPORT_LIMIT_HEAP_SIZE=$budget MiB (launcher GPU budget)" >&2
+fi
+echo "steam-gfx-env: VK_VRAM_REPORT_LIMIT_DEVICE_ID=$id (Venus)" >&2
