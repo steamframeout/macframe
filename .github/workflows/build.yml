@@ -1,6 +1,9 @@
 # Builds the all-in-one app: the SteamOS VM launcher (FX Steam Launcher fork with the VR work) with the Steam Frame
-# Wireless Adapter bridge inside. Result: the "Frame-VR-app" artifact (a zip of the .app, signed ad hoc: open it
-# with right-click > Open the first time).
+# Wireless Adapter bridge inside. Result: a pre-release on the Releases page with Frame-VR.zip (the .app, signed ad
+# hoc: open it with right-click > Open the first time).
+#
+# Jobs hand files to each other through the Actions cache (keyed by run), not artifacts: artifact storage is a
+# per-account quota that other repositories can use up; the cache and release assets are separate.
 #
 #   guest-x86   x86_64 Linux: Venus + zink for FEX-emulated x86 apps (Mesa, amd64 container)
 #   guest-arm   arm64 Linux:  guest kernel, verified SteamOS rootfs, aarch64 Mesa + verify, initramfs, layer image
@@ -12,6 +15,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: write   # the release with the app
 
 concurrency:
   group: build-${{ github.ref }}
@@ -25,13 +31,16 @@ jobs:
       - uses: actions/checkout@v4
       - name: free disk space
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h /
+      - name: arm64 emulation (the source fetch runs in an arm64 container)
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
       - name: Mesa for x86 (Venus x86_64 + i386, zink, fault reporter)
         run: guest/mesa/build.sh fetch x86
-      - uses: actions/upload-artifact@v4
+      - uses: actions/cache/save@v4
         with:
-          name: mesa-x86
+          key: mesa-x86-${{ github.run_id }}
           path: work/out/mesa-venus
-          if-no-files-found: error
 
   guest-arm:
     needs: guest-x86
@@ -45,10 +54,11 @@ jobs:
         uses: docker/setup-qemu-action@v3
         with:
           platforms: amd64
-      - uses: actions/download-artifact@v4
+      - uses: actions/cache/restore@v4
         with:
-          name: mesa-x86
+          key: mesa-x86-${{ github.run_id }}
           path: work/out/mesa-venus
+          fail-on-cache-miss: true
       - name: guest kernel
         run: guest/kernel/build.sh
       - name: SteamOS rootfs (Valve's signed OTA, verified)
@@ -57,10 +67,9 @@ jobs:
         run: guest/mesa/build.sh fetch aarch64 verify
       - name: initramfs + layer image
         run: scripts/build-image.sh initramfs layer
-      - uses: actions/upload-artifact@v4
+      - uses: actions/cache/save@v4
         with:
-          name: guest
-          if-no-files-found: error
+          key: guest-${{ github.run_id }}
           path: |
             work/out/Image
             work/out/Image.inputs.json
@@ -83,11 +92,10 @@ jobs:
           sudo install /tmp/apple-codesign-0.29.0-x86_64-unknown-linux-musl/rcodesign /usr/local/bin/rcodesign
       - name: Frame Bridge.app
         run: frame-bridge/macapp/build-app.sh "$PWD/work/bridge"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/cache/save@v4
         with:
-          name: frame-bridge
+          key: frame-bridge-${{ github.run_id }}
           path: work/bridge/FrameBridge.zip
-          if-no-files-found: error
 
   app:
     needs: [guest-arm, bridge]
@@ -101,14 +109,22 @@ jobs:
           xcodebuild -version
       - name: Homebrew packages
         run: brew install meson ninja pkg-config dtc xz lld sshpass go
-      - uses: actions/download-artifact@v4
+      - uses: actions/cache/restore@v4
         with:
-          name: guest
-          path: work/out
-      - uses: actions/download-artifact@v4
+          key: guest-${{ github.run_id }}
+          path: |
+            work/out/Image
+            work/out/Image.inputs.json
+            work/out/initramfs.cpio.gz
+            work/out/initramfs.cpio.gz.inputs.json
+            work/out/steamac-layer.img
+            work/out/steamac-layer.img.inputs.json
+          fail-on-cache-miss: true
+      - uses: actions/cache/restore@v4
         with:
-          name: frame-bridge
-          path: work/bridge
+          key: frame-bridge-${{ github.run_id }}
+          path: work/bridge/FrameBridge.zip
+          fail-on-cache-miss: true
       - name: unpack Frame Bridge
         run: cd work/bridge && ditto -x -k FrameBridge.zip .
       - name: host build (MoltenVK, KosmicKrisp, libepoxy, virglrenderer, libkrun, launcher)
@@ -120,8 +136,11 @@ jobs:
           cd work/out
           ditto -c -k --keepParent "FX Steam Launcher.app" "$GITHUB_WORKSPACE/Frame-VR.zip"
           du -sh "FX Steam Launcher.app" "$GITHUB_WORKSPACE/Frame-VR.zip"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Frame-VR-app
-          path: Frame-VR.zip
-          if-no-files-found: error
+      - name: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="build-${{ github.run_number }}"
+          gh release create "$tag" Frame-VR.zip --prerelease --target "${{ github.sha }}" \
+            --title "Frame VR build ${{ github.run_number }}" \
+            --notes "Built from ${{ github.sha }}. Unzip, then right-click the app > Open the first time (signed ad hoc, not notarized)."
