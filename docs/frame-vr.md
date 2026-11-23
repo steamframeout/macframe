@@ -20,10 +20,10 @@ SteamOS VM (libkrun) ── Steam + SteamVR (x86_64 under FEX) ── vrlink (Va
 
 | Piece | State |
 |---|---|
-| App (launcher + bridge in one bundle) | builds on GitHub Actions (`.github/workflows/build.yml`); release assets |
+| App (launcher + bridge + executor library in one bundle) | builds on GitHub Actions (`.github/workflows/build.yml`); release assets |
 | Wireless adapter on the Mac (Frame Bridge) | works with real hardware: joins the headset's hidden 6 GHz link at 160 MHz |
 | Vulkan Video encode on Venus (guest/venc) | H.264 and H.265 pass `make check` (FFmpeg's Vulkan encoders, 11 cases) in-process and through the Mac protocol (stand-in host) |
-| VideoToolbox executor (wmtr/src/wmtr_venc.m) | written, not compiled yet (needs the DXMT/wmtr host build on a Mac) |
+| VideoToolbox executor (wmtr/src/wmtr_venc.m) | in libwmtr_host.dylib, built by the app job; `make -C wmtr venc-test` passes on GitHub's macOS 26 runners (1080p H.264 High and HEVC Main, 90 frames, IDR on request, FFmpeg decodes both streams) |
 | VR eyes from games (Vulkan path, D3D11/12 via DXVK/vkd3d) | written and cross-compiled; runtime untested |
 | SteamVR + vrlink in the VM | not tried yet: vrlink ships for x86_64 Linux only (FEX) |
 | Steam driving the adapter (NetworkManager, pairing) | not yet: needs the adapter inside the VM (USB passthrough for libkrun) |

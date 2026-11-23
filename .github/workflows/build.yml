@@ -89,10 +89,12 @@ jobs:
         id: kernel
         uses: actions/cache/restore@v4
         with:
-          key: kernel-${{ hashFiles('guest/kernel/**') }}
+          key: kernel-v2-${{ hashFiles('guest/kernel/**') }}
           path: |
             work/out/Image
             work/out/Image.inputs.json
+            work/out/kernel.config
+            work/cache/kernel
       - name: guest kernel
         if: steps.kernel.outputs.cache-hit != 'true'
         run: guest/kernel/build.sh
@@ -100,10 +102,12 @@ jobs:
         if: steps.kernel.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          key: kernel-${{ hashFiles('guest/kernel/**') }}
+          key: kernel-v2-${{ hashFiles('guest/kernel/**') }}
           path: |
             work/out/Image
             work/out/Image.inputs.json
+            work/out/kernel.config
+            work/cache/kernel
       - name: SteamOS rootfs (Valve's signed OTA, verified)
         run: scripts/build-image.sh builder rootfs
       - name: Mesa for aarch64 + verify
@@ -112,7 +116,12 @@ jobs:
         if: always()
         run: for f in work/build/mesa-venus/venc-*.log; do echo "== $f"; tail -5 "$f"; done 2>/dev/null || true
       - name: initramfs + layer image
-        run: scripts/build-image.sh initramfs layer
+        run: |
+          scripts/build-image.sh initramfs layer
+          sudo chown -R "$(id -u):$(id -g)" work
+      # what host/launcher/licenses.sh asks the build containers (the Mac has no Docker): guest Rust, busybox
+      - name: guest toolchain record
+        run: scripts/guest-toolchain.sh
       - uses: actions/cache/save@v4
         with:
           key: guest-${{ github.run_id }}
@@ -127,6 +136,14 @@ jobs:
             work/out/mesa-venus.inputs.json
             work/out/mesa-aarch64.inputs.json
             work/out/mesa-x86.inputs.json
+            work/out/kernel.config
+            work/out/guest-toolchain.json
+            work/cache/licenses
+            work/cache/cargo-home/registry
+            work/cache/kernel/*.tar.xz
+            work/cache/dosfstools/*/*.tar.gz
+            work/cache/e2fsprogs/*/*.tar.xz
+            work/cache/btrfs-progs/*/*.tar.xz
 
   bridge:
     runs-on: ubuntu-24.04
@@ -173,6 +190,14 @@ jobs:
             work/out/mesa-venus.inputs.json
             work/out/mesa-aarch64.inputs.json
             work/out/mesa-x86.inputs.json
+            work/out/kernel.config
+            work/out/guest-toolchain.json
+            work/cache/licenses
+            work/cache/cargo-home/registry
+            work/cache/kernel/*.tar.xz
+            work/cache/dosfstools/*/*.tar.gz
+            work/cache/e2fsprogs/*/*.tar.xz
+            work/cache/btrfs-progs/*/*.tar.xz
           fail-on-cache-miss: true
       - uses: actions/cache/restore@v4
         with:
@@ -192,8 +217,6 @@ jobs:
       - name: executor library (DXMT + LLVM 15 + wmtr, with the VideoToolbox encoder test)
         id: wmtr
         continue-on-error: true
-        env:
-          WMTR_SKIP_GPU_TESTS: "1"
         run: |
           xcrun -sdk macosx -f metal >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
           host/dxmt/build.sh fetch llvm native host
@@ -214,6 +237,12 @@ jobs:
           MVK_SKIP_REPRO: "1"
           KK_SKIP_HOST_TESTS: "1"
         run: ./build.sh host
+      - name: launcher self-tests (no VM; reported)
+        continue-on-error: true
+        run: |
+          app="work/out/FX Steam Launcher.app/Contents/MacOS/steamac-vm"
+          ls "work/out/FX Steam Launcher.app/Contents/Frameworks"
+          for t in graphics-path remote-play; do echo "=== --selftest-$t"; "$app" "--selftest-$t"; done
       - name: zip the app
         run: |
           cd work/out
@@ -226,4 +255,4 @@ jobs:
           tag="build-${{ github.run_number }}"
           gh release create "$tag" Frame-VR.zip --prerelease --target "${{ github.sha }}" \
             --title "Frame VR build ${{ github.run_number }}" \
-            --notes "Built from ${{ github.sha }}. Unzip, then right-click the app > Open the first time (signed ad hoc, not notarized)."
+            --notes "Built from ${{ github.sha }}. Unzip, then right-click the app > Open the first time (signed ad hoc, not notarized). Executor library (Frame streaming encoder): ${{ steps.wmtr.outcome }}."
