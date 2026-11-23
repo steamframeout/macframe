@@ -40,7 +40,10 @@ jobs:
       - uses: actions/cache/save@v4
         with:
           key: mesa-x86-${{ github.run_id }}
-          path: work/out/mesa-venus
+          path: |
+            work/out/mesa-venus
+            work/out/mesa-x86.inputs.json
+            work/build/mesa-venus
 
   guest-arm:
     needs: guest-x86
@@ -57,7 +60,10 @@ jobs:
       - uses: actions/cache/restore@v4
         with:
           key: mesa-x86-${{ github.run_id }}
-          path: work/out/mesa-venus
+          path: |
+            work/out/mesa-venus
+            work/out/mesa-x86.inputs.json
+            work/build/mesa-venus
           fail-on-cache-miss: true
       - name: guest kernel
         run: guest/kernel/build.sh
