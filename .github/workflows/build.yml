@@ -73,10 +73,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: free disk space
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache; df -h /
-      - name: amd64 emulation (only for the Mesa verify chroot's x86 checks)
+      - name: x86 emulation (the Mesa verify chroot checks the x86_64 and i386 builds)
         uses: docker/setup-qemu-action@v3
         with:
-          platforms: amd64
+          platforms: amd64,386
       - uses: actions/cache/restore@v4
         with:
           key: mesa-x86-${{ github.run_id }}
@@ -108,6 +108,9 @@ jobs:
         run: scripts/build-image.sh builder rootfs
       - name: Mesa for aarch64 + verify
         run: guest/mesa/build.sh fetch aarch64 verify
+      - name: encode layer build logs (optional component)
+        if: always()
+        run: for f in work/build/mesa-venus/venc-*.log; do echo "== $f"; tail -5 "$f"; done 2>/dev/null || true
       - name: initramfs + layer image
         run: scripts/build-image.sh initramfs layer
       - uses: actions/cache/save@v4
