@@ -128,7 +128,7 @@ fi
 find_adapter() {
   for d in /sys/bus/usb/devices/*; do
     [ -f "$d/idVendor" ] || continue
-    [ "$(cat "$d/idVendor")" = 28de ] && [ "$(cat "$d/idProduct")" = 2432 ] && { basename "$d"; return 0; }
+    [ "$(cat "$d/idVendor"):$(cat "$d/idProduct")" = "$USBIP_ID" ] && { basename "$d"; return 0; }
   done
   return 1
 }
@@ -167,6 +167,9 @@ share_usbip() {
   done
 }
 if [ "$MODE" = usbip ]; then
+  USBIP_ID=$(conf_get USBIP_ID 28de:2432)   # another device only for tests (an emulated USB device)
+  # development test image only (tests/usbip-loopback.sh appends it): attach the export inside this VM
+  [ -x /etc/bridge/usbip-test.sh ] && USBIP_ID=$USBIP_ID /etc/bridge/usbip-test.sh &
   share_usbip
   while :; do sleep 3600; done
 fi

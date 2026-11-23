@@ -11,14 +11,16 @@
 # Polls every few seconds; a detached device (Frame Bridge stopped, adapter unplugged) is attached again once it is
 # offered. Nothing happens while no Frame Bridge runs. steamac.frame_adapter=0 on the kernel command line turns it
 # off. The adapter's regulatory country is the Mac's region (steamac.country, from the launcher).
-# Test overrides: STEAMAC_CMDLINE, STEAMAC_USBIP_HOST, STEAMAC_USBIP_PORT, STEAMAC_VHCI, STEAMAC_ONCE=1.
+# Test overrides: STEAMAC_CMDLINE, STEAMAC_USBIP_HOST, STEAMAC_USBIP_PORT, STEAMAC_VHCI, STEAMAC_ONCE=1,
+# STEAMAC_ADAPTER_ID=vid:pid (another device).
 set -u
 
 cmdline=${STEAMAC_CMDLINE:-/proc/cmdline}
 host=${STEAMAC_USBIP_HOST:-192.168.127.254}
 port=${STEAMAC_USBIP_PORT:-3240}
 vhci=${STEAMAC_VHCI:-/sys/devices/platform/vhci_hcd.0}
-VID=28de PID=2432
+id=${STEAMAC_ADAPTER_ID:-28de:2432}
+VID=${id%:*} PID=${id#*:}
 country=
 
 log() { echo "frame-adapter: $*"; }
