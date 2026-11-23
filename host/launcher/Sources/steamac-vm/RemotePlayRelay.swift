@@ -66,6 +66,8 @@ final class RemotePlayRelay {
             upstream = Self.address(inet_addr("127.0.0.1"), privatePort)
             for port in 27031...27035 { try expose("udp", "0.0.0.0:\(port)", guestPort: port) }
             for port in 27036...27037 { try expose("tcp", "0.0.0.0:\(port)", guestPort: port) }
+            // Steam Link VR streaming to a Steam Frame over Wi-Fi (the Wireless Adapter link reaches the VM directly)
+            for port in 10400...10401 { try expose("udp", "0.0.0.0:\(port)", guestPort: port) }
             interfaces = Self.lanInterfaces()
             localAddresses = Self.hostAddresses()
             let source = DispatchSource.makeReadSource(fileDescriptor: listener, queue: queue)
@@ -81,7 +83,7 @@ final class RemotePlayRelay {
             timer.setEventHandler { [weak self] in self?.tick() }
             self.timer = timer
             timer.resume()
-            log("remote-play: LAN relay on, UDP 27031–27036 / TCP 27036–27037 → 192.168.127.2; allow Local Network access")
+            log("remote-play: LAN relay on, UDP 27031–27036, 10400–10401 / TCP 27036–27037 → 192.168.127.2; allow Local Network access")
         } catch {
             stop()
             throw error

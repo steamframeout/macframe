@@ -444,8 +444,9 @@ final class LauncherSettings: ObservableObject {
     @Published var sshEnabled = !AppBundle.releaseDefaults { didSet { save(.sshEnabled, sshEnabled) } }
     @Published var sshPort = 2222 { didSet { save(.sshPort, sshPort) } }
     @Published var network = true { didSet { save(.network, network) } }
-    /// Opt-in: exposes Remote Play to the local network, unlike ordinary user-mode NAT.
-    @Published var lanRemotePlay = false { didSet { save(.lanRemotePlay, lanRemotePlay) } }
+    /// Exposes Remote Play to the local network, unlike ordinary user-mode NAT. On by default: the Steam Frame finds
+    /// and pairs with this Steam like with a PC on the network (it fails closed when a Mac Steam client owns the port).
+    @Published var lanRemotePlay = true { didSet { save(.lanRemotePlay, lanRemotePlay) } }
     /// "" = default (see AppBundle.defaultDisk()).
     @Published var diskImage = "" { didSet { save(.diskImage, diskImage) } }
     /// SteamOS update branch "Create New Disk…" installs (atomupd vr/<branch>.json).

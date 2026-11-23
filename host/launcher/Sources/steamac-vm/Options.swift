@@ -64,7 +64,7 @@ struct Options {
     var headless = false
     var logFile: String?
     var network = true
-    var lanRemotePlay = false
+    var lanRemotePlay = true
     var selftestRemotePlay = false
     var selftestPointer = false
     var selftestGameLayers = false
