@@ -182,6 +182,8 @@ jobs:
       - name: unpack Frame Bridge
         run: cd work/bridge && ditto -x -k FrameBridge.zip .
       - name: crates of the guest's Rust agent (licenses.sh reads them offline; the guest job built it on Linux)
+        env:
+          CARGO_HOME: ${{ github.workspace }}/work/cache/cargo-home
         run: cargo fetch --locked --manifest-path guest/progress-agent/Cargo.toml
       - name: host build (MoltenVK, KosmicKrisp, libepoxy, virglrenderer, libkrun, launcher)
         env:
