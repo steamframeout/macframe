@@ -118,7 +118,9 @@ run_codec(uint32_t codec, const char *dir) {
   if (f) fwrite(m.data, 1, m.bytes, f);
 
   uint32_t in_res = 0x7001 + codec * 2, out_res = in_res + 1;
-  size_t luma = (size_t)W * H, in_size = luma + luma / 2 + 4096, out_size = 8u << 20;
+  size_t luma = (size_t)W * H, out_size = 8u << 20;
+  /* whole 64 KiB like the guest layer's staging memory (the executor maps whole host pages only) */
+  size_t in_size = (luma + luma / 2 + 4096 + 0xffff) & ~(size_t)0xffff;
   uint8_t *in = shm_region(in_res, in_size);
   uint8_t *out = shm_region(out_res, out_size);
   CHECK(in && out, "shared memory");
