@@ -566,6 +566,8 @@ do {
     }
     console.start()
     vm.start()
+    // a Steam Frame Wireless Adapter plugged into the Mac goes to SteamOS (Frame Bridge, USB/IP)
+    FrameBridgeLauncher.shared.startAutoShare()
     // VR boots: "Start in VR" / the headset's app list reach the guest agent; the pairing PIN shows on the window.
     var vrRelay: VRRelay?
     if options.vr {

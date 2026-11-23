@@ -519,7 +519,31 @@ Unplug the adapter, plug it back in, and try again." "Show Log,OK" "OK")
   esac
 }
 
+# FX Steam Launcher runs "FrameBridge share" when the adapter is plugged in while SteamOS runs: hand it over with
+# notifications only (an administrator dialog only if macOS refuses USB access). A bridge already running is left
+# alone, whatever its mode.
+share_quietly() {
+  first_checks
+  running_pid >/dev/null && exit 0
+  adapter_present || exit 0
+  port_busy && { notify "Port 3240 is in use: the adapter can't be passed to SteamOS."; exit 1; }
+  local hit
+  hit=$(start_share 0 "$ACCEL")
+  if [ -z "$hit" ] && grep -qaiE "LIBUSB_ERROR_ACCESS|libusb.*(denied|ACCESS)|failed to open host usb" "$LOGD/qemu.out" 2>/dev/null; then
+    stop_vm
+    hit=$(start_share 1 "$ACCEL")
+  elif [ -z "$hit" ] && ! running_pid >/dev/null && [ "$(vm_failed_reason)" = hvf ]; then
+    hit=$(start_share 0 tcg)
+  fi
+  case "$hit" in
+    *"BRIDGE: SHARED"*) notify "Steam Frame Wireless Adapter connected to SteamOS." ;;
+    *) stop_vm; notify "The Steam Frame Wireless Adapter couldn't be connected to SteamOS. Open Frame Bridge for details."; exit 1 ;;
+  esac
+  exit 0
+}
+
 # ------------------------------------------------------------------------------------------------ menu
+[ "${1:-}" = share ] && share_quietly
 first_checks
 while :; do
   if running_pid >/dev/null && grep -qa "BRIDGE: SHARED" "$LOG" 2>/dev/null; then
