@@ -73,6 +73,22 @@ gcc -O2 -Wall -Wextra -Werror -fPIC -shared -Wl,-soname,fault-report.so -Wl,--bu
     -o /tmp/fault-report.so /scripts/fault-report.c
 install -D -m 0644 -s /tmp/fault-report.so /out/usr/lib/steamac/x86_64/fault-report.so
 
+# The Vulkan Video encode layer (guest/venc: Vulkan Video on Venus for SteamVR's Steam Frame streaming,
+# encoded by the Mac). Built with this container's toolchain and Mesa's Vulkan headers. Optional: a failure
+# leaves the image without it (logged), never without Venus.
+build_venc() {   # <arch> <destdir> <libdir>
+    if [ ! -d /repo/guest/venc ]; then echo "venc: /repo not mounted, skipped"; return 0; fi
+    command -v make >/dev/null || pacman -Sy --noconfirm --needed make >/dev/null 2>&1 || true
+    if make -C /repo/guest/venc ARCH="$1" CROSS= VKH=/src/include OUT="/tmp/venc-$1" LIBDIR="$3" \
+            DESTDIR="$2" install > "/work/venc-$1.log" 2>&1; then
+        echo "venc: built for $1 into $2$3"
+    else
+        echo "venc: build FAILED for $1 (layer left out; log: work/build/mesa-venus/venc-$1.log)"
+        tail -20 "/work/venc-$1.log"
+    fi
+}
+build_venc x86_64 "/out${FEX_PROVIDER}" /usr/lib/venc
+
 mkdir -p /work/bin
 gcc -O2 -Wall -o /work/bin/vkprobe-x86_64 /scripts/vkprobe.c -ldl
 gcc -m32 -O2 -Wall -o /work/bin/vkprobe-i386 /scripts/vkprobe.c -ldl

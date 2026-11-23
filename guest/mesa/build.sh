@@ -70,12 +70,12 @@ for step in "${steps[@]}"; do
         inputs=$(artifacts begin mesa-aarch64)
         [[ $fetched == 1 ]] || fetch_sources
         rm -rf "$OUT/usr/lib/libvulkan_virtio.so" "$OUT/usr/share/vulkan" "$OUT/usr/lib/dri" "$OUT/usr/lib/gbm" \
-            "$OUT/usr/share/glvnd" "$OUT/usr/share/drirc.d"
+            "$OUT/usr/share/glvnd" "$OUT/usr/share/drirc.d" "$OUT/usr/lib/venc"
         rm -f "$OUT"/usr/lib/libgallium-*.so "$OUT"/usr/lib/libGLX_mesa.so* "$OUT"/usr/lib/libEGL_mesa.so* \
             "$OUT"/usr/lib/libgbm.so*
         docker run --rm --platform linux/arm64 \
             -v "$SRC_VOLUME:/src:ro" -v "$HERE/patches:/patches:ro" -v "$HERE/container:/scripts:ro" \
-            -v "$OUT:/out" -v "$WORK:/work" \
+            -v "$OUT:/out" -v "$WORK:/work" -v "$REPO:/repo:ro" \
             "$AARCH64_IMAGE" bash /scripts/build-aarch64.sh > "$WORK/build-aarch64.log" 2>&1 \
             || { tail -40 "$WORK/build-aarch64.log"; exit 1; }
         artifacts finish mesa-aarch64 "$inputs"
@@ -88,7 +88,7 @@ for step in "${steps[@]}"; do
         docker run --rm --platform linux/amd64 \
             -e STEAMOS_X86_MIRROR -e STEAMOS_X86_BRANCH -e FEX_PROVIDER -e HOLO_KEYRING_PKG -e HOLO_KEYRING_SHA256 \
             -v "$SRC_VOLUME:/src:ro" -v "$HERE/patches:/patches:ro" -v "$HERE/container:/scripts:ro" \
-            -v "$OUT:/out" -v "$WORK:/work" \
+            -v "$OUT:/out" -v "$WORK:/work" -v "$REPO:/repo:ro" \
             "$X86_IMAGE" bash /scripts/build-x86.sh > "$WORK/build-x86.log" 2>&1 \
             || { tail -40 "$WORK/build-x86.log"; exit 1; }
         artifacts finish mesa-x86 "$inputs"

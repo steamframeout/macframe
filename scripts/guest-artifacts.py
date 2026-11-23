@@ -18,6 +18,9 @@ MESA_INPUTS = (
     "guest/mesa/build.sh", "guest/mesa/versions.env", "guest/mesa/container", "guest/mesa/patches",
     "scripts/config.env", "scripts/steps/10-rootfs.sh",
     "scripts/builder/Dockerfile", "scripts/keys/steamdeck-images.pem",
+    # the Vulkan Video encode layer, built in the same containers (guest/venc/Makefile)
+    "guest/venc", "guest/vr/runtime/wmtr_native.c", "guest/vr/runtime/wmtr_native.h", "guest/vr/include",
+    "wmtr/include", "wmtr/src/transport_virtgpu.c",
 )
 INPUTS = {
     "kernel": ("guest/kernel/build.sh", "guest/kernel/container-build.sh",
@@ -40,7 +43,7 @@ OUTPUTS = {
     "mesa-aarch64": tuple(OUT / "mesa-venus" / p for p in (
         "usr/lib/libvulkan_virtio.so", "usr/share/vulkan", "usr/lib/libgallium-*.so", "usr/lib/libGLX_mesa.so*",
         "usr/lib/libEGL_mesa.so*", "usr/lib/libgbm.so*", "usr/lib/dri", "usr/lib/gbm", "usr/share/glvnd",
-        "usr/share/drirc.d")),
+        "usr/share/drirc.d", "usr/lib/venc")),
     "mesa-x86": (OUT / "mesa-venus/usr/share/guestos", OUT / "mesa-venus/usr/lib/steamac"),
     "layer": (OUT / "steamac-layer.img",),
 }
