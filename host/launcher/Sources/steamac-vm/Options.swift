@@ -622,6 +622,10 @@ struct Options {
             // only written when on; absent is the default (off), so an explicit =0 needs no key
             if let a = Options.frameLatencyArg(o.frameLatency) { add(a.key, a.value) }
             if let a = Options.vrArg(o.vr && VRHost.unavailableReason(o) == nil) { add(a.key, a.value) }
+            // the Mac's region: the regulatory country of the Steam Frame Wireless Adapter when Frame Bridge passes it
+            // to the VM (guest /usr/lib/steamac/frame-adapter; 6 GHz channels depend on it)
+            add("steamac.country", Locale.current.region.map(\.identifier).flatMap {
+                $0.count == 2 && $0.allSatisfy({ $0.isASCII && $0.isLetter }) ? $0.uppercased() : nil })
             if o.macTime {
                 add("steamac.tz", MacTime.zone)
                 add("steamac.clock24", MacTime.clock24.map { $0 ? "1" : "0" })

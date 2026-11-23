@@ -1,0 +1,131 @@
+#!/bin/bash
+# steamac: the Steam Frame Wireless Adapter, plugged into the Mac, attached to this VM over USB/IP
+# (steamac-frame-adapter.service, runs for the whole session).
+#
+# macOS has no driver for the adapter (Realtek RTL8852CU, USB 28de:2432). Frame Bridge on the Mac ("Use the adapter
+# with SteamOS") passes the USB device through its own small VM to a USB/IP server that the Mac forwards at
+# 127.0.0.1:3240, which this VM reaches as gvproxy's host address. This attaches it with vhci-hcd: from then on the
+# adapter is an ordinary USB device of this kernel (rtw89_8852cu, firmware from the layer), and NetworkManager and
+# Steam handle it as on any Linux PC: pairing the headset, the headset's link and Steam Link VR streaming.
+#
+# Polls every few seconds; a detached device (Frame Bridge stopped, adapter unplugged) is attached again once it is
+# offered. Nothing happens while no Frame Bridge runs. steamac.frame_adapter=0 on the kernel command line turns it
+# off. The adapter's regulatory country is the Mac's region (steamac.country, from the launcher).
+# Test overrides: STEAMAC_CMDLINE, STEAMAC_USBIP_HOST, STEAMAC_USBIP_PORT, STEAMAC_VHCI, STEAMAC_ONCE=1.
+set -u
+
+cmdline=${STEAMAC_CMDLINE:-/proc/cmdline}
+host=${STEAMAC_USBIP_HOST:-192.168.127.254}
+port=${STEAMAC_USBIP_PORT:-3240}
+vhci=${STEAMAC_VHCI:-/sys/devices/platform/vhci_hcd.0}
+VID=28de PID=2432
+country=
+
+log() { echo "frame-adapter: $*"; }
+
+for w in $(cat "$cmdline" 2>/dev/null); do
+    case $w in
+        steamac.frame_adapter=0) log "off (steamac.frame_adapter=0)"; exit 0 ;;
+        steamac.country=??) country=${w#steamac.country=} ;;
+    esac
+done
+
+# n bytes from the connection (fd 3) as lowercase hex; GNU head reads no further than it was asked to
+recv_hex() { head -c "$1" <&3 | od -An -v -tx1 | tr -d ' \n'; }
+send_hex() {
+    local h=$1 f=
+    while [ -n "$h" ]; do f+="\\x${h:0:2}"; h=${h:2}; done
+    printf "$f" >&3
+}
+be() { echo $((16#$1)); }                      # big-endian hex field -> decimal
+str() {  # NUL-terminated hex string -> text
+    local h=$1 out=
+    while [ -n "$h" ] && [ "${h:0:2}" != 00 ]; do out+="\\x${h:0:2}"; h=${h:2}; done
+    printf '%b' "$out"
+}
+pad_hex() { local h; h=$(printf '%s' "$1" | od -An -v -tx1 | tr -d ' \n'); while [ ${#h} -lt $(($2 * 2)) ]; do h+=00; done; echo "$h"; }
+
+connect() { exec 3<>"/dev/tcp/$host/$port"; }
+disconnect() { exec 3<&- 3>&-; }
+
+# OP_REQ_DEVLIST: the bus id of the adapter, and its speed, on the server
+find_adapter() {
+    connect 2>/dev/null || return 1
+    send_hex 0111800500000000
+    local hdr n i dev ifs busid
+    hdr=$(recv_hex 12)
+    if [ ${#hdr} -ne 24 ] || [ "${hdr:4:4}" != 0005 ] || [ "${hdr:8:8}" != 00000000 ]; then disconnect; return 1; fi
+    n=$(be "${hdr:16:8}")
+    for ((i = 0; i < n; i++)); do
+        dev=$(recv_hex 312)
+        [ ${#dev} -eq 624 ] || { disconnect; return 1; }
+        ifs=$(be "${dev:622:2}")
+        [ "$ifs" -gt 0 ] && recv_hex $((ifs * 4)) >/dev/null
+        if [ "${dev:600:4}" = $VID ] && [ "${dev:604:4}" = $PID ]; then
+            busid=$(str "${dev:512:64}")
+            disconnect
+            echo "$busid"
+            return 0
+        fi
+    done
+    disconnect
+    return 1
+}
+
+# a free vhci port for the device's speed: "ss" ports for SuperSpeed (5, 6), "hs" otherwise
+free_port() {
+    local want=hs
+    [ "$1" -ge 5 ] && want=ss
+    awk -v want="$want" 'FNR > 1 && $1 == want && $3 == "004" { print $2 + 0; exit }' "$vhci"/status* 2>/dev/null
+}
+
+# OP_REQ_IMPORT, then the connection goes to the kernel (vhci-hcd's attach takes this process's socket fd 3)
+attach() {
+    local busid=$1 rep dev speed devid p
+    connect 2>/dev/null || return 1
+    send_hex "0111800300000000$(pad_hex "$busid" 32)"
+    rep=$(recv_hex 8)
+    if [ "${rep:4:4}" != 0003 ] || [ "${rep:8:8}" != 00000000 ]; then
+        log "the bridge refused the adapter (status ${rep:8:8}: in use by another VM?)"
+        disconnect; return 1
+    fi
+    dev=$(recv_hex 312)
+    [ ${#dev} -eq 624 ] || { disconnect; return 1; }
+    devid=$(( ($(be "${dev:576:8}") << 16) | $(be "${dev:584:8}") ))
+    speed=$(be "${dev:592:8}")
+    p=$(free_port "$speed")
+    [ -n "$p" ] || { log "no free USB/IP port for speed $speed"; disconnect; return 1; }
+    if ! echo "$p 3 $devid $speed" > "$vhci/attach"; then
+        log "vhci-hcd refused the attach (port $p, speed $speed)"
+        disconnect; return 1
+    fi
+    disconnect
+    log "attached the Steam Frame Wireless Adapter (bridge bus id $busid, vhci port $p, speed $speed)"
+    return 0
+}
+
+in_use() { awk 'FNR > 1 && $3 != "004" { f = 1 } END { exit !f }' "$vhci"/status* 2>/dev/null; }
+
+# cfg80211 is built in: it looked for regulatory.db before the rootfs was mounted. Load it now (signed copy from
+# the rootfs), then the Mac's country, once the adapter's wireless device exists.
+regulatory() {
+    command -v iw >/dev/null || { log "iw missing: regulatory database not reloaded"; return; }
+    local i
+    for ((i = 0; i < 30; i++)); do
+        ls /sys/class/ieee80211/ 2>/dev/null | grep -q . && break
+        sleep 1
+    done
+    iw reg reload 2>/dev/null || log "iw reg reload failed (no regulatory.db?)"
+    [ -n "$country" ] && { iw reg set "$country" 2>/dev/null && log "regulatory country $country"; }
+}
+
+[ -d "$vhci" ] || { modprobe vhci-hcd 2>/dev/null; sleep 1; }
+[ -d "$vhci" ] || { log "no vhci-hcd in this kernel"; exit 0; }
+log "waiting for Frame Bridge at $host:$port"
+while :; do
+    if ! in_use && busid=$(find_adapter) && attach "$busid"; then
+        regulatory
+    fi
+    [ "${STEAMAC_ONCE:-0}" = 1 ] && exit 0
+    sleep 3
+done

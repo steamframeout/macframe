@@ -1,0 +1,13 @@
+# steamac: the Steam Frame Wireless Adapter from the Mac (Frame Bridge, USB/IP), attached whenever it is offered
+# (see /usr/lib/steamac/frame-adapter; steamac.frame_adapter=0 turns it off).
+[Unit]
+Description=FX Steam Launcher: Steam Frame Wireless Adapter from the Mac
+After=network.target
+
+[Service]
+ExecStart=/usr/lib/steamac/frame-adapter
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -40,7 +40,9 @@ load_modules() {
     name=$(basename "$m" .ko)
     case "$name" in
       mac80211_hwsim) continue ;;  # self-test only (loaded below with its parameters)
-      cfg80211) insmod "$m" ieee80211_regdom="$COUNTRY" 2>/dev/null ;;
+      # MODE=usbip: SteamOS's own kernel drives the adapter; no driver here may claim it first
+      cfg80211) [ "$MODE" = usbip ] && continue; insmod "$m" ieee80211_regdom="$COUNTRY" 2>/dev/null ;;
+      rtw89*|mac80211) [ "$MODE" = usbip ] && continue; insmod "$m" 2>/dev/null ;;
       *) insmod "$m" 2>/dev/null ;;
     esac || { grep -q "^$(echo "$name" | tr - _) " /proc/modules || say "module $name did not load"; }
   done < /etc/bridge/modules.load
@@ -118,6 +120,56 @@ fi
     fi
   done
 ) &
+
+
+# --- MODE=usbip: hand the adapter itself to the SteamOS VM (USB/IP), so Steam drives it as on a Linux PC ---------
+# The Mac forwards 127.0.0.1:3240 to this VM's usbipd; SteamOS attaches the device with its vhci-hcd (its
+# steamac-frame-adapter service) and its own rtw89_8852cu, NetworkManager and Steam take it from there.
+find_adapter() {
+  for d in /sys/bus/usb/devices/*; do
+    [ -f "$d/idVendor" ] || continue
+    [ "$(cat "$d/idVendor")" = 28de ] && [ "$(cat "$d/idProduct")" = 2432 ] && { basename "$d"; return 0; }
+  done
+  return 1
+}
+share_usbip() {
+  local i=0 busid st last=
+  until busid=$(find_adapter); do
+    sleep 1; i=$((i + 1))
+    [ $i -ge 30 ] && { fail "the adapter did not appear on USB in the VM (is it passed through?)"; dmesg | grep -iE "usb" | tail -10 > /dev/console; return 1; }
+  done
+  usbip bind -b "$busid" > /run/usbip-bind.log 2>&1
+  [ -f "/sys/bus/usb/devices/$busid/usbip_status" ] ||
+    { fail "cannot hand the adapter to USB/IP: $(tail -1 /run/usbip-bind.log)"; return 1; }
+  usbipd -4 > /run/usbipd.log 2>&1 &
+  sleep 1
+  kill -0 $! 2>/dev/null || { fail "usbipd did not start: $(tail -2 /run/usbipd.log | tr '\n' ' ')"; return 1; }
+  say "SHARED adapter $busid on USB/IP port 3240 (speed $(cat "/sys/bus/usb/devices/$busid/speed" 2>/dev/null) Mbit/s)"
+  # 1 = exported and free, 2 = attached by SteamOS, 3 = error; an unplugged and replugged adapter is bound again
+  while :; do
+    if [ ! -d "/sys/bus/usb/devices/$busid" ]; then
+      st=gone
+    else
+      [ -f "/sys/bus/usb/devices/$busid/usbip_status" ] || usbip bind -b "$busid" >> /run/usbip-bind.log 2>&1
+      st=$(cat "/sys/bus/usb/devices/$busid/usbip_status" 2>/dev/null)
+    fi
+    if [ "$st" != "$last" ]; then
+      case "$st" in
+        1) say "usbip: waiting for SteamOS to attach the adapter" ;;
+        2) say "usbip: SteamOS is using the adapter" ;;
+        gone) say "usbip: the adapter was unplugged" ;;
+        *) say "usbip: status ${st:-unknown}" ;;
+      esac
+      last=$st
+    fi
+    if [ "$st" = gone ] && b=$(find_adapter); then busid=$b; usbip bind -b "$busid" >> /run/usbip-bind.log 2>&1; fi
+    sleep 2
+  done
+}
+if [ "$MODE" = usbip ]; then
+  share_usbip
+  while :; do sleep 3600; done
+fi
 
 # --- self-test: two simulated radios, the second one plays the Frame in its own network namespace ------------
 if [ "$SELFTEST" = hwsim ]; then

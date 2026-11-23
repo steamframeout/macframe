@@ -31,7 +31,7 @@ echo "== Alpine packages"
 fetch --skip linux-firmware-any initramfs-generator mkinitfs -- linux-lts >/dev/null
 fetch --skip linux-lts -- linux-lts-dev >/dev/null
 fetch --skip bash bash-binsh busybox busybox-binsh -- \
-  busybox-static linux-firmware-rtw89 wireless-regdb wpa_supplicant hostapd nftables iw dnsmasq >/dev/null
+  busybox-static linux-firmware-rtw89 wireless-regdb wpa_supplicant hostapd nftables iw dnsmasq linux-tools-usbip >/dev/null
 grep -qx "$KREL" "$WORK"/root/usr/src/linux-headers-*/include/config/kernel.release ||
   { echo "Alpine linux-lts is not $KREL any more: set KVER_UPSTREAM/KREL to match it" >&2; exit 1; }
 HDR=$(ls -d "$WORK"/root/usr/src/linux-headers-*)
@@ -67,9 +67,9 @@ python3 -I "$HERE/tools/check_modversions.py" "$HDR/Module.symvers" "$WORK"/rtw8
 echo "== initramfs"
 python3 -I "$HERE/tools/mkinitramfs.py" --root "$WORK/root" --kver "$KREL" --extra-modules "$WORK/rtw89" \
   --modules qemu_fw_cfg af_packet virtio_pci virtio_net xhci_pci usbcore rtw89_8852cu nf_tables nft_chain_nat nft_nat \
-            nft_masq ctr ccm gcm cmac seqiv aes_ce_ccm aes_ce_blk ghash_ce mac80211_hwsim \
+            nft_masq ctr ccm gcm cmac seqiv aes_ce_ccm aes_ce_blk ghash_ce mac80211_hwsim usbip_host \
   --bins bin/busybox.static sbin/wpa_supplicant sbin/wpa_cli usr/sbin/hostapd usr/bin/hostapd_cli \
-         usr/sbin/nft usr/sbin/iw usr/sbin/dnsmasq \
+         usr/sbin/nft usr/sbin/iw usr/sbin/dnsmasq usr/sbin/usbipd usr/sbin/usbip \
   --firmware "rtw89/rtw8852c_fw*" "regulatory.db" "regulatory.db.p7s" \
   --overlay "$HERE/overlay" --stage "$WORK/stage" --out "$WORK/out/bridge-initramfs.img"
 cp "$WORK/root/boot/vmlinuz-lts" "$WORK/out/bridge-kernel"

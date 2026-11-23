@@ -324,6 +324,11 @@ add('Mesa', versions['MESA_COMMIT'], 'MIT', layer + ':/usr/lib and /usr/share/gu
     versions['MESA_URL'], [('license.rst', pinned_text(
         'mesa-' + versions['MESA_COMMIT'] + '-license.rst',
         'https://gitlab.freedesktop.org/mesa/mesa/-/raw/' + versions['MESA_COMMIT'] + '/docs/license.rst'))])
+# Firmware of the Steam Frame Wireless Adapter's chip (RTL8852CU), for when Frame Bridge passes it to the VM
+rtw_fw = root / 'guest/layer/usr/lib/firmware/rtw89'
+add('linux-firmware-rtw8852c', '20261019', 'LicenseRef-rtlwifi_firmware', layer + ':/usr/lib/firmware/rtw89/rtw8852c_fw-2.bin',
+    'https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/tree/rtw89?h=20261019',
+    [('LICENCE.rtlwifi_firmware.txt', require(rtw_fw / 'LICENCE.rtlwifi_firmware.txt').read_bytes())])
 if dxmt_guest:
     dxmt_location = layer + ':/usr/lib/steamac/dxmt/'
     for dll in ('d3d11', 'dxgi', 'd3d10core', 'winemetal'):

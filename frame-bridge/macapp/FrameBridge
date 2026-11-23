@@ -123,7 +123,10 @@ conf_value() { grep -m1 "^$1=" "$CONF" 2>/dev/null | cut -d= -f2-; }
 # ------------------------------------------------------------------------------------------------ the VM
 # start_vm CONFIG_FILE with_adapter(0/1) as_root(0/1): starts QEMU in the background, writes the pid file
 start_vm() {
-  local conf=$1 usb=$2 root=$3 accel=${4:-hvf}
+  local conf=$1 usb=$2 root=$3 accel=${4:-hvf} net=user,id=n0
+  # MODE=usbip: SteamOS reaches the VM's usbipd at the Mac's 127.0.0.1:3240 (its gateway 192.168.127.254)
+  grep -q '^MODE=usbip' "$conf" && net="$net,hostfwd=tcp:127.0.0.1:3240-:3240"
+
   local priv; priv=$(mktemp -d "${TMPDIR:-/tmp}/framebridge.XXXXXX")
   cp "$conf" "$priv/link.conf"; chmod 600 "$priv/link.conf"
   : > "$LOG"
@@ -131,7 +134,7 @@ start_vm() {
   local args=(-accel "$accel" -M virt -cpu "$cpu" -smp 2 -m 384 -display none -monitor none -no-reboot
     -serial "file:$LOG" -kernel "$IMG/bridge-kernel" -initrd "$IMG/bridge-initramfs.img"
     -append "console=ttyAMA0 quiet" -fw_cfg "name=opt/framebridge/link.conf,file=$priv/link.conf"
-    -device qemu-xhci,id=xhci -netdev user,id=n0 -device virtio-net-pci,netdev=n0,romfile=)
+    -device qemu-xhci,id=xhci -netdev "$net" -device virtio-net-pci,netdev=n0,romfile=)
   [ "$usb" = 1 ] && args+=(-device "usb-host,bus=xhci.0,vendorid=$VID,productid=$PID")
   if [ "$root" = 1 ]; then
     # one shell line for the administrator dialog; every argument quoted
@@ -456,10 +459,78 @@ WiVRn server address for the headset: ${ready:-(waiting for the link)}" "Stop Br
   [ "$b" = "Show Log" ] && open -e "$LOG"
 }
 
+# ------------------------------------------------------------------------------------------------ SteamOS (USB/IP)
+# The adapter goes to the SteamOS VM itself: this VM only passes the USB device on (USB/IP), and SteamOS's kernel,
+# NetworkManager and Steam drive it exactly as on a Linux PC: pairing, the headset's link and Steam Link streaming.
+port_busy() { lsof -nP -iTCP:3240 -sTCP:LISTEN >/dev/null 2>&1; }
+start_share() {  # as_root(0/1) accel -> 0 when the VM said SHARED
+  local f="$SUP/usbip.conf"
+  printf 'MODE=usbip\nDEBUG_SHELL=0\n' > "$f"; chmod 600 "$f"
+  start_vm "$f" 1 "$1" "$2" || return 1
+  wait_for 90 "BRIDGE: SHARED" "BRIDGE: ERROR"
+}
+report_shared() {
+  local b
+  b=$(ask "The wireless adapter now belongs to SteamOS, as if it were plugged into a PC.
+
+Start SteamOS in FX Steam Launcher (or keep it running): it picks the adapter up within a few seconds. Then pair and stream from Steam's own Steam Frame settings, exactly as on a Windows PC.
+
+Frame Bridge keeps passing the adapter through in the background. Open it again to stop." "Stop,Done" "Done")
+  [ "$b" = Stop ] && stop_vm
+}
+do_share() {
+  local b hit
+  while ! adapter_present; do
+    b=$(ask "Plug the Steam Frame Wireless Adapter into a USB port on this Mac (USB 3 works best), then click Retry." "Cancel,Retry" "Retry")
+    [ "$b" = Retry ] || return
+    sleep 2
+  done
+  stop_vm
+  if port_busy; then
+    ask "Another program on this Mac is using port 3240 (USB/IP), which Frame Bridge needs. Quit it and try again." "OK" >/dev/null
+    return
+  fi
+  notify "Handing the adapter to SteamOS…"
+  hit=$(start_share 0 "$ACCEL")
+  if [ -z "$hit" ] || grep -qaiE "LIBUSB_ERROR_ACCESS|libusb.*(denied|ACCESS)|failed to open host usb" "$LOGD/qemu.out" 2>/dev/null; then
+    case "$(running_pid >/dev/null && echo run || vm_failed_reason)" in
+      hvf) ACCEL=tcg; hit=$(start_share 0 tcg) ;;
+      *)
+        stop_vm
+        b=$(ask "macOS needs your permission for Frame Bridge to take over the adapter (your Mac's administrator password)." "Cancel,Allow" "Allow")
+        [ "$b" = Allow ] || return
+        hit=$(start_share 1 "$ACCEL") ;;
+    esac
+  fi
+  case "$hit" in
+    *"BRIDGE: SHARED"*) report_shared ;;
+    *"BRIDGE: ERROR"*)
+      stop_vm
+      b=$(ask "The adapter couldn't be handed to SteamOS:
+
+$(printf '%s' "${hit#*BRIDGE: ERROR }" | tr -d '\r')
+
+Unplug the adapter, plug it back in, and try again." "Show Log,OK" "OK")
+      [ "$b" = "Show Log" ] && open -e "$LOG" ;;
+    *)
+      b=$(ask "The bridge didn't start. The details are in the log." "Show Log,OK" "Show Log")
+      [ "$b" = "Show Log" ] && open -e "$LOGD/qemu.out" "$LOG"
+      stop_vm ;;
+  esac
+}
+
 # ------------------------------------------------------------------------------------------------ menu
 first_checks
 while :; do
-  if running_pid >/dev/null; then
+  if running_pid >/dev/null && grep -qa "BRIDGE: SHARED" "$LOG" 2>/dev/null; then
+    st=$(grep -a "BRIDGE: usbip:" "$LOG" | tail -1 | sed 's/.*usbip: //')
+    c=$(choose "The adapter is passed through to SteamOS (${st:-starting})." "Stop passing the adapter through" "Show the log")
+    case "$c" in
+      "Stop passing"*) stop_vm; notify "The adapter is back with this Mac." ;;
+      "Show the log") open -e "$LOG" ;;
+      *) exit 0 ;;
+    esac
+  elif running_pid >/dev/null; then
     c=$(choose "The wireless adapter bridge is running." "Show connection status" "Stop the bridge" "Show the log")
     case "$c" in
       "Show connection status") do_status ;;
@@ -469,12 +540,13 @@ while :; do
     esac
   else
     if [ -f "$CONF" ]; then
-      c=$(choose "Use the Steam Frame Wireless Adapter with this Mac." "Connect the wireless adapter" "Set up from the headset again" "Test this Mac (no headset needed)" "Show the log")
+      c=$(choose "Use the Steam Frame Wireless Adapter with this Mac." "Use the adapter with SteamOS (like a PC)" "Connect the wireless adapter (WiVRn)" "Set up from the headset again" "Test this Mac (no headset needed)" "Show the log")
     else
-      c=$(choose "Use the Steam Frame Wireless Adapter with this Mac. Start with the test, then set up from the headset." "Test this Mac (no headset needed)" "Set up from the headset" "Connect the wireless adapter")
+      c=$(choose "Use the Steam Frame Wireless Adapter with this Mac." "Use the adapter with SteamOS (like a PC)" "Test this Mac (no headset needed)" "Set up from the headset (WiVRn)" "Connect the wireless adapter (WiVRn)")
     fi
     case "$c" in
-      "Connect the wireless adapter") do_connect ;;
+      "Use the adapter with SteamOS"*) do_share ;;
+      "Connect the wireless adapter"*) do_connect ;;
       "Set up from the headset"*) do_setup ;;
       "Test this Mac"*) do_test ;;
       "Show the log") [ -f "$LOG" ] && open -e "$LOG" ;;
