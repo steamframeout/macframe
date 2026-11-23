@@ -123,6 +123,10 @@ jobs:
             work/out/initramfs.cpio.gz.inputs.json
             work/out/steamac-layer.img
             work/out/steamac-layer.img.inputs.json
+            work/out/mesa-venus
+            work/out/mesa-venus.inputs.json
+            work/out/mesa-aarch64.inputs.json
+            work/out/mesa-x86.inputs.json
 
   bridge:
     runs-on: ubuntu-24.04
@@ -165,6 +169,10 @@ jobs:
             work/out/initramfs.cpio.gz.inputs.json
             work/out/steamac-layer.img
             work/out/steamac-layer.img.inputs.json
+            work/out/mesa-venus
+            work/out/mesa-venus.inputs.json
+            work/out/mesa-aarch64.inputs.json
+            work/out/mesa-x86.inputs.json
           fail-on-cache-miss: true
       - uses: actions/cache/restore@v4
         with:
