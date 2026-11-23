@@ -176,6 +176,10 @@ jobs:
       - name: host build (MoltenVK, KosmicKrisp, libepoxy, virglrenderer, libkrun, launcher)
         env:
           FRAME_BRIDGE_APP: ${{ github.workspace }}/work/bridge/Frame Bridge.app
+          # GitHub's macOS VMs have a paravirtual GPU without the features of real Apple GPUs (mesh shaders,
+          # ...): the drivers' GPU repros run on a Mac instead (the build scripts' documented CI switches)
+          MVK_SKIP_REPRO: "1"
+          KK_SKIP_HOST_TESTS: "1"
         run: ./build.sh host
       - name: zip the app
         run: |
