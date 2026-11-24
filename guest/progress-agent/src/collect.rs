@@ -61,6 +61,7 @@ const VR_LOGS: &[&str] = &[
     "streaming_log.txt",
     // Steam Frame streaming (vrlink driver) and its startup
     "vrstartup.txt",
+    "vrstartup-linux.txt",
     "driver_vrlink.txt",
     "vrlink.txt",
     "vrclient_vrcompositor.txt",
