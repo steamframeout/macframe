@@ -57,13 +57,6 @@ jobs:
             work/out/mesa-venus
             work/out/mesa-x86.inputs.json
             work/build/mesa-venus
-      - uses: actions/cache/save@v4
-        with:
-          key: mesa-x86-${{ github.run_id }}
-          path: |
-            work/out/mesa-venus
-            work/out/mesa-x86.inputs.json
-            work/build/mesa-venus
 
   guest-arm:
     needs: guest-x86
@@ -107,7 +100,7 @@ jobs:
       - uses: actions/cache/restore@v4
         if: steps.reuse.outputs.cache-hit != 'true'
         with:
-          key: mesa-x86-${{ github.run_id }}
+          key: mesa-x86-inputs-${{ hashFiles('guest/mesa/**', 'guest/venc/**', 'guest/vr/runtime/wmtr_native.*', 'guest/vr/include/**', 'wmtr/include/**', 'wmtr/src/transport_virtgpu.c', 'scripts/config.env', 'scripts/steps/10-rootfs.sh', 'scripts/builder/Dockerfile', 'scripts/keys/steamdeck-images.pem') }}
           path: |
             work/out/mesa-venus
             work/out/mesa-x86.inputs.json
@@ -155,28 +148,6 @@ jobs:
       - name: guest toolchain record
         if: steps.reuse.outputs.cache-hit != 'true'
         run: scripts/guest-toolchain.sh
-      - uses: actions/cache/save@v4
-        with:
-          key: guest-${{ github.run_id }}
-          path: |
-            work/out/Image
-            work/out/Image.inputs.json
-            work/out/initramfs.cpio.gz
-            work/out/initramfs.cpio.gz.inputs.json
-            work/out/steamac-layer.img
-            work/out/steamac-layer.img.inputs.json
-            work/out/mesa-venus
-            work/out/mesa-venus.inputs.json
-            work/out/mesa-aarch64.inputs.json
-            work/out/mesa-x86.inputs.json
-            work/out/kernel.config
-            work/out/guest-toolchain.json
-            work/cache/licenses
-            work/cache/cargo-home/registry
-            work/cache/kernel/*.tar.xz
-            work/cache/dosfstools/*/*.tar.gz
-            work/cache/e2fsprogs/*/*.tar.xz
-            work/cache/btrfs-progs/*/*.tar.xz
       - name: keep this guest for later runs with the same inputs
         if: steps.reuse.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
@@ -235,7 +206,7 @@ jobs:
         run: brew install meson ninja pkg-config dtc xz lld sshpass go cmake zstd
       - uses: actions/cache/restore@v4
         with:
-          key: guest-${{ github.run_id }}
+          key: guest-in-${{ hashFiles('guest/**', 'scripts/**', 'wmtr/include/**', 'host/vrhost/include/**') }}
           path: |
             work/out/Image
             work/out/Image.inputs.json
@@ -266,19 +237,41 @@ jobs:
       # The executor library (libwmtr_host.dylib): DXMT's Metal executor, the VR exporter and the VideoToolbox
       # encoder behind the guest's Vulkan Video layer (Steam Frame streaming). bundle.sh ships it when it exists, so
       # a failure here still gives an app (without Frame streaming and DXMT); the log says why.
+      # The Mac libraries (MoltenVK, KosmicKrisp, libepoxy, virglrenderer, libkrun, the executor library) and the
+      # sources licenses.sh reads: reused while their inputs are unchanged, so a launcher change builds in minutes
+      - name: reuse the Mac libraries of an earlier run with the same inputs
+        id: hostdeps
+        uses: actions/cache/restore@v4
+        with:
+          key: host-deps-v1-${{ runner.arch }}-${{ hashFiles('host/moltenvk/**', 'host/kosmickrisp/**', 'host/libepoxy/**', 'host/virglrenderer/**', 'host/libkrun/**', 'host/dxmt/**', 'wmtr/**', 'guest/venc/include/**', 'guest/venc/src/venc_nal.c', 'guest/vr/include/**', 'host/vrhost/include/**') }}
+          path: |
+            work/out/host
+            !work/out/host/llvm15
+            work/build/host-libkrun/src
+            !work/build/host-libkrun/src/target
+            !work/build/host-libkrun/src/linux-sysroot
+            work/build/host-virglrenderer/src
+            work/build/host-moltenvk/src
+            work/build/host-moltenvk/SPIRV-Cross
+            !work/build/host-moltenvk/src/External/build
+            work/build/host-kosmickrisp/src
+            work/build/host-libepoxy/src
+            work/cache/dxmt
       - uses: actions/cache/restore@v4
         id: llvm15
+        if: steps.hostdeps.outputs.cache-hit != 'true'
         with:
           key: llvm15-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('host/dxmt/pin.env') }}
           path: work/out/host/llvm15
       - name: executor library (DXMT + LLVM 15 + wmtr, with the VideoToolbox encoder test)
         id: wmtr
+        if: steps.hostdeps.outputs.cache-hit != 'true'
         continue-on-error: true
         run: |
           xcrun -sdk macosx -f metal >/dev/null 2>&1 || xcodebuild -downloadComponent MetalToolchain
           host/dxmt/build.sh fetch llvm native host
       - uses: actions/cache/save@v4
-        if: steps.llvm15.outputs.cache-hit != 'true' && hashFiles('work/out/host/llvm15/.pin') != ''
+        if: steps.hostdeps.outputs.cache-hit != 'true' && steps.llvm15.outputs.cache-hit != 'true' && hashFiles('work/out/host/llvm15/.pin') != ''
         with:
           key: llvm15-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('host/dxmt/pin.env') }}
           path: work/out/host/llvm15
@@ -295,7 +288,32 @@ jobs:
           # ...): the drivers' GPU repros run on a Mac instead (the build scripts' documented CI switches)
           MVK_SKIP_REPRO: "1"
           KK_SKIP_HOST_TESTS: "1"
-        run: ./build.sh host
+        run: |
+          if [ "${{ steps.hostdeps.outputs.cache-hit }}" = true ]; then
+            echo "Mac libraries reused (same inputs): launcher only"
+            host/launcher/build.sh
+          else
+            ./build.sh host
+          fi
+      - name: keep the Mac libraries for later runs
+        if: steps.hostdeps.outputs.cache-hit != 'true' && steps.wmtr.outcome == 'success'
+        uses: actions/cache/save@v4
+        with:
+          key: host-deps-v1-${{ runner.arch }}-${{ hashFiles('host/moltenvk/**', 'host/kosmickrisp/**', 'host/libepoxy/**', 'host/virglrenderer/**', 'host/libkrun/**', 'host/dxmt/**', 'wmtr/**', 'guest/venc/include/**', 'guest/venc/src/venc_nal.c', 'guest/vr/include/**', 'host/vrhost/include/**') }}
+          path: |
+            work/out/host
+            !work/out/host/llvm15
+            work/build/host-libkrun/src
+            !work/build/host-libkrun/src/target
+            !work/build/host-libkrun/src/linux-sysroot
+            work/build/host-virglrenderer/src
+            work/build/host-moltenvk/src
+            work/build/host-moltenvk/SPIRV-Cross
+            !work/build/host-moltenvk/src/External/build
+            work/build/host-kosmickrisp/src
+            work/build/host-libepoxy/src
+            work/cache/dxmt
+
       - name: launcher self-tests (no VM; reported)
         continue-on-error: true
         run: |
@@ -324,4 +342,4 @@ jobs:
           gh release create "v$v" MacFrame.zip --target "${{ github.sha }}" --title "MacFrame $v" \
             --notes "Download MacFrame.zip, unzip it and drag MacFrame to Applications. The first time, right-click MacFrame > Open (it is not notarized by Apple). The setup assistant does the rest.
 
-          Built from ${{ github.sha }}. Steam Frame streaming encoder: ${{ steps.wmtr.outcome }}."
+          Built from ${{ github.sha }}. Steam Frame streaming encoder: ${{ steps.hostdeps.outputs.cache-hit == 'true' && 'reused' || steps.wmtr.outcome }}."
