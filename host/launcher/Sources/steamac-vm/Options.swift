@@ -629,6 +629,12 @@ struct Options {
             // to the VM (guest /usr/lib/steamac/frame-adapter; 6 GHz channels depend on it)
             add("steamac.country", Locale.current.region.map(\.identifier).flatMap {
                 $0.count == 2 && $0.allSatisfy({ $0.isASCII && $0.isLetter }) ? $0.uppercased() : nil })
+            // the adapter's known Linux problems (guest kernel patches 0008/0009): 2.4 GHz scans reset its USB link,
+            // power saving and USB link power management stall it, and the headset's 6 GHz link wants LPI power
+            add("rtw89_core.disable_2ghz", "1")
+            add("rtw89_core.reg6_pwr_override", "1")
+            add("rtw89_core.disable_ps_mode", "1")
+            add("usbcore.quirks", "28de:2432:k")
             if o.macTime {
                 add("steamac.tz", MacTime.zone)
                 add("steamac.clock24", MacTime.clock24.map { $0 ? "1" : "0" })
