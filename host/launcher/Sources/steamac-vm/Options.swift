@@ -66,6 +66,8 @@ struct Options {
     var network = true
     var lanRemotePlay = true
     var selftestRemotePlay = false
+    /// --selftest-setup: the setup assistant's steps as PNGs in --selftest-out (no disk is created)
+    var selftestSetup = false
     var selftestPointer = false
     var selftestGameLayers = false
     var sound = true
@@ -520,6 +522,7 @@ struct Options {
             case "--selftest-pill": o.selftestPill = true
             case "--selftest-settings": o.selftestSettings = true
             case "--selftest-remote-play": o.selftestRemotePlay = true
+            case "--selftest-setup": o.selftestSetup = true
             case "--selftest-provision": o.selftestProvision = true
             case "--selftest-metal-cache": o.selftestMetalCache = true
             case "--selftest-game-layers": o.selftestGameLayers = true
@@ -581,7 +584,7 @@ struct Options {
     }
 
     var isSelftest: Bool {
-        selftestDisplay || selftestOverlay || selftestStall || selftestPill || selftestSettings || selftestProvision || selftestRemotePlay
+        selftestDisplay || selftestOverlay || selftestStall || selftestPill || selftestSettings || selftestProvision || selftestRemotePlay || selftestSetup
             || selftestMetalCache || selftestPointer || selftestGameLayers || selftestVR || selftestL10n || createDisk != nil
             || growDisk != nil
             || showSSHPassword != nil

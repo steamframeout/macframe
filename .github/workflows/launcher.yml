@@ -37,7 +37,7 @@ jobs:
           swift build -c release --scratch-path .build -Xcc -I/tmp/krun/include -Xcc "-I$GITHUB_WORKSPACE/host/vrhost/include" \
             -Xlinker -L/tmp/krun/lib 2>&1 | tee /tmp/build.log
           set -e
-          if grep -E "error:" /tmp/build.log | grep -v "ld: library 'krun' not found\|linker command failed\|library not found for -lkrun"; then
+          if grep -E "error:" /tmp/build.log | grep -v "library .krun. not found\|linker command failed\|link command failed\|library not found for -lkrun"; then
             echo "Swift compile errors"; exit 1
           fi
           grep -q "Compiling steamac_vm\|Compiling steamac-vm\|Emitting module steamac_vm" /tmp/build.log || { echo "the launcher module was not compiled"; exit 1; }

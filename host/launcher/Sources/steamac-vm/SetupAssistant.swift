@@ -131,6 +131,31 @@ final class SetupAssistant: NSObject, NSWindowDelegate {
         a.window.makeKeyAndOrderFront(nil)
     }
 
+    /// --selftest-setup: every step of both forms as <dir>/setup-<n>-<step>.png, then exit.
+    static func selfTest(dir: String) -> Never {
+        let app = NSApplication.shared
+        app.setActivationPolicy(.regular)
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        var n = 0
+        for firstRun in [true, false] {
+            let a = SetupAssistant(settings: LauncherSettings.shared, firstRun: firstRun)
+            a.window.center()
+            a.window.makeKeyAndOrderFront(nil)
+            for step in a.model.steps {
+                a.model.step = step
+                if step == .steamos && n == 1 { a.model.showOptions = true }
+                RunLoop.main.run(until: Date().addingTimeInterval(0.8))
+                n += 1
+                let name = "\(dir)/setup-\(n)-\(firstRun ? "first" : "frame")-\(step).png"
+                ReportControl.dump(a.window, to: name)
+                print("selftest-setup: \(name)")
+            }
+            a.window.orderOut(nil)
+        }
+        print("selftest-setup: PASS")
+        exit(0)
+    }
+
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if model.disk.running {
             let alert = NSAlert()

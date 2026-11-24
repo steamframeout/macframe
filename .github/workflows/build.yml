@@ -302,6 +302,15 @@ jobs:
           app="work/out/MacFrame.app/Contents/MacOS/MacFrame"
           ls "work/out/MacFrame.app/Contents/Frameworks"
           for t in graphics-path remote-play; do echo "=== --selftest-$t"; "$app" "--selftest-$t"; done
+          echo "=== --selftest-setup"; "$app" --selftest-setup --selftest-out "$PWD/setup-shots"
+      - name: setup assistant screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: setup-assistant
+          path: setup-shots
+          if-no-files-found: ignore
+          retention-days: 14
       - name: zip the app
         run: |
           cd work/out
