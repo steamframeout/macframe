@@ -29,13 +29,22 @@ jobs:
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
+      # Cache keys from the clean checkout: the builds write into these trees (wmtr/build, guest/kernel's config,
+      # crate targets), so hashing them again at save time gave other keys and nothing was ever reused
+      - name: cache keys
+        id: keys
+        run: |
+          echo "x86=mesa-x86-inputs-${{ hashFiles('guest/mesa/**', 'guest/venc/**', 'guest/vr/runtime/wmtr_native.*', 'guest/vr/include/**', 'wmtr/include/**', 'wmtr/src/transport_virtgpu.c', 'scripts/config.env', 'scripts/steps/10-rootfs.sh', 'scripts/builder/Dockerfile', 'scripts/keys/steamdeck-images.pem') }}" >> "$GITHUB_OUTPUT"
+          echo "guest=guest-in-${{ hashFiles('guest/**', 'scripts/**', 'wmtr/include/**', 'host/vrhost/include/**') }}" >> "$GITHUB_OUTPUT"
+          echo "kernel=kernel-v2-${{ hashFiles('guest/kernel/**') }}" >> "$GITHUB_OUTPUT"
+          echo "hostdeps=host-deps-v1-${{ runner.arch }}-${{ hashFiles('host/moltenvk/**', 'host/kosmickrisp/**', 'host/libepoxy/**', 'host/virglrenderer/**', 'host/libkrun/**', 'host/dxmt/**', 'wmtr/**', 'guest/venc/include/**', 'guest/venc/src/venc_nal.c', 'guest/vr/include/**', 'host/vrhost/include/**') }}" >> "$GITHUB_OUTPUT"
       - name: free disk space
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h /
       - name: reuse an earlier build of the same inputs
         id: prev
         uses: actions/cache/restore@v4
         with:
-          key: mesa-x86-inputs-${{ hashFiles('guest/mesa/**', 'guest/venc/**', 'guest/vr/runtime/wmtr_native.*', 'guest/vr/include/**', 'wmtr/include/**', 'wmtr/src/transport_virtgpu.c', 'scripts/config.env', 'scripts/steps/10-rootfs.sh', 'scripts/builder/Dockerfile', 'scripts/keys/steamdeck-images.pem') }}
+          key: ${{ steps.keys.outputs.x86 }}
           path: |
             work/out/mesa-venus
             work/out/mesa-x86.inputs.json
@@ -52,7 +61,7 @@ jobs:
         if: steps.prev.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          key: mesa-x86-inputs-${{ hashFiles('guest/mesa/**', 'guest/venc/**', 'guest/vr/runtime/wmtr_native.*', 'guest/vr/include/**', 'wmtr/include/**', 'wmtr/src/transport_virtgpu.c', 'scripts/config.env', 'scripts/steps/10-rootfs.sh', 'scripts/builder/Dockerfile', 'scripts/keys/steamdeck-images.pem') }}
+          key: ${{ steps.keys.outputs.x86 }}
           path: |
             work/out/mesa-venus
             work/out/mesa-x86.inputs.json
@@ -64,11 +73,20 @@ jobs:
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
+      # Cache keys from the clean checkout: the builds write into these trees (wmtr/build, guest/kernel's config,
+      # crate targets), so hashing them again at save time gave other keys and nothing was ever reused
+      - name: cache keys
+        id: keys
+        run: |
+          echo "x86=mesa-x86-inputs-${{ hashFiles('guest/mesa/**', 'guest/venc/**', 'guest/vr/runtime/wmtr_native.*', 'guest/vr/include/**', 'wmtr/include/**', 'wmtr/src/transport_virtgpu.c', 'scripts/config.env', 'scripts/steps/10-rootfs.sh', 'scripts/builder/Dockerfile', 'scripts/keys/steamdeck-images.pem') }}" >> "$GITHUB_OUTPUT"
+          echo "guest=guest-in-${{ hashFiles('guest/**', 'scripts/**', 'wmtr/include/**', 'host/vrhost/include/**') }}" >> "$GITHUB_OUTPUT"
+          echo "kernel=kernel-v2-${{ hashFiles('guest/kernel/**') }}" >> "$GITHUB_OUTPUT"
+          echo "hostdeps=host-deps-v1-${{ runner.arch }}-${{ hashFiles('host/moltenvk/**', 'host/kosmickrisp/**', 'host/libepoxy/**', 'host/virglrenderer/**', 'host/libkrun/**', 'host/dxmt/**', 'wmtr/**', 'guest/venc/include/**', 'guest/venc/src/venc_nal.c', 'guest/vr/include/**', 'host/vrhost/include/**') }}" >> "$GITHUB_OUTPUT"
       - name: reuse the guest of an earlier run with the same inputs
         id: reuse
         uses: actions/cache/restore@v4
         with:
-          key: guest-in-${{ hashFiles('guest/**', 'scripts/**', 'wmtr/include/**', 'host/vrhost/include/**') }}
+          key: ${{ steps.keys.outputs.guest }}
           path: |
             work/out/Image
             work/out/Image.inputs.json
@@ -100,7 +118,7 @@ jobs:
       - uses: actions/cache/restore@v4
         if: steps.reuse.outputs.cache-hit != 'true'
         with:
-          key: mesa-x86-inputs-${{ hashFiles('guest/mesa/**', 'guest/venc/**', 'guest/vr/runtime/wmtr_native.*', 'guest/vr/include/**', 'wmtr/include/**', 'wmtr/src/transport_virtgpu.c', 'scripts/config.env', 'scripts/steps/10-rootfs.sh', 'scripts/builder/Dockerfile', 'scripts/keys/steamdeck-images.pem') }}
+          key: ${{ steps.keys.outputs.x86 }}
           path: |
             work/out/mesa-venus
             work/out/mesa-x86.inputs.json
@@ -111,7 +129,7 @@ jobs:
         id: kernel
         uses: actions/cache/restore@v4
         with:
-          key: kernel-v2-${{ hashFiles('guest/kernel/**') }}
+          key: ${{ steps.keys.outputs.kernel }}
           path: |
             work/out/Image
             work/out/Image.inputs.json
@@ -124,7 +142,7 @@ jobs:
         if: steps.reuse.outputs.cache-hit != 'true' && (steps.kernel.outputs.cache-hit != 'true')
         uses: actions/cache/save@v4
         with:
-          key: kernel-v2-${{ hashFiles('guest/kernel/**') }}
+          key: ${{ steps.keys.outputs.kernel }}
           path: |
             work/out/Image
             work/out/Image.inputs.json
@@ -152,7 +170,7 @@ jobs:
         if: steps.reuse.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
-          key: guest-in-${{ hashFiles('guest/**', 'scripts/**', 'wmtr/include/**', 'host/vrhost/include/**') }}
+          key: ${{ steps.keys.outputs.guest }}
           path: |
             work/out/Image
             work/out/Image.inputs.json
@@ -198,6 +216,15 @@ jobs:
     timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
+      # Cache keys from the clean checkout: the builds write into these trees (wmtr/build, guest/kernel's config,
+      # crate targets), so hashing them again at save time gave other keys and nothing was ever reused
+      - name: cache keys
+        id: keys
+        run: |
+          echo "x86=mesa-x86-inputs-${{ hashFiles('guest/mesa/**', 'guest/venc/**', 'guest/vr/runtime/wmtr_native.*', 'guest/vr/include/**', 'wmtr/include/**', 'wmtr/src/transport_virtgpu.c', 'scripts/config.env', 'scripts/steps/10-rootfs.sh', 'scripts/builder/Dockerfile', 'scripts/keys/steamdeck-images.pem') }}" >> "$GITHUB_OUTPUT"
+          echo "guest=guest-in-${{ hashFiles('guest/**', 'scripts/**', 'wmtr/include/**', 'host/vrhost/include/**') }}" >> "$GITHUB_OUTPUT"
+          echo "kernel=kernel-v2-${{ hashFiles('guest/kernel/**') }}" >> "$GITHUB_OUTPUT"
+          echo "hostdeps=host-deps-v1-${{ runner.arch }}-${{ hashFiles('host/moltenvk/**', 'host/kosmickrisp/**', 'host/libepoxy/**', 'host/virglrenderer/**', 'host/libkrun/**', 'host/dxmt/**', 'wmtr/**', 'guest/venc/include/**', 'guest/venc/src/venc_nal.c', 'guest/vr/include/**', 'host/vrhost/include/**') }}" >> "$GITHUB_OUTPUT"
       - name: Xcode 26
         run: |
           sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
@@ -206,7 +233,7 @@ jobs:
         run: brew install meson ninja pkg-config dtc xz lld sshpass go cmake zstd
       - uses: actions/cache/restore@v4
         with:
-          key: guest-in-${{ hashFiles('guest/**', 'scripts/**', 'wmtr/include/**', 'host/vrhost/include/**') }}
+          key: ${{ steps.keys.outputs.guest }}
           path: |
             work/out/Image
             work/out/Image.inputs.json
@@ -243,7 +270,7 @@ jobs:
         id: hostdeps
         uses: actions/cache/restore@v4
         with:
-          key: host-deps-v1-${{ runner.arch }}-${{ hashFiles('host/moltenvk/**', 'host/kosmickrisp/**', 'host/libepoxy/**', 'host/virglrenderer/**', 'host/libkrun/**', 'host/dxmt/**', 'wmtr/**', 'guest/venc/include/**', 'guest/venc/src/venc_nal.c', 'guest/vr/include/**', 'host/vrhost/include/**') }}
+          key: ${{ steps.keys.outputs.hostdeps }}
           path: |
             work/out/host
             !work/out/host/llvm15
@@ -299,7 +326,7 @@ jobs:
         if: steps.hostdeps.outputs.cache-hit != 'true' && steps.wmtr.outcome == 'success'
         uses: actions/cache/save@v4
         with:
-          key: host-deps-v1-${{ runner.arch }}-${{ hashFiles('host/moltenvk/**', 'host/kosmickrisp/**', 'host/libepoxy/**', 'host/virglrenderer/**', 'host/libkrun/**', 'host/dxmt/**', 'wmtr/**', 'guest/venc/include/**', 'guest/venc/src/venc_nal.c', 'guest/vr/include/**', 'host/vrhost/include/**') }}
+          key: ${{ steps.keys.outputs.hostdeps }}
           path: |
             work/out/host
             !work/out/host/llvm15
