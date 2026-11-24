@@ -59,6 +59,13 @@ const VR_LOGS: &[&str] = &[
     "vrclient_vrwebhelper.txt",
     "vrstream.txt",
     "streaming_log.txt",
+    // Steam Frame streaming (vrlink driver) and its startup
+    "vrstartup.txt",
+    "driver_vrlink.txt",
+    "vrlink.txt",
+    "vrclient_vrcompositor.txt",
+    "vrclient_vrserver.txt",
+    "vrclient_steam.txt",
 ];
 const VR_LOG_TAIL: usize = 256 * 1024;
 

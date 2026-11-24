@@ -1381,9 +1381,9 @@ final class ProblemReport: NSObject {
     static let shared = ProblemReport()
     static let issuesURL = URL(string: "https://github.com/steamframeout/macframe/issues/new")!
 
+    /// The report sheet itself either way: it collects the SteamOS logs too, and without a server saves a zip.
     static func menuItem(_ report: Selector, _ target: AnyObject) -> NSMenuItem {
-        CrashReporting.available ? MainMenu.item("Report a Problem…", report, target)
-            : MainMenu.item("Report a Problem…", #selector(open(_:)), shared)
+        MainMenu.item("Report a Problem…", report, target)
     }
 
     @objc func open(_ sender: Any?) { Self.open() }

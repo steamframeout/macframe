@@ -95,11 +95,21 @@ bool process_wanted()
             comm[strcspn(comm, "\n")] = 0;
         fclose(f);
     }
-    static const char *const names[] = {"vrserver", "vrcompositor", "vrstartup"};
+    // SteamVR's processes: the known names, any "vr…" process, and anything run from the SteamVR install
+    // (the Steam Frame streaming driver may encode in a helper of its own)
+    static const char *const names[] = {"vrserver", "vrcompositor", "vrstartup", "vrmonitor"};
     wanted = 0;
     for (const char *n : names)
         if (!strcmp(comm, n))
             wanted = 1;
+    if (!strncmp(comm, "vr", 2))
+        wanted = 1;
+    char exe[512] = {0};
+    ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
+    if (n > 0 && (strstr(exe, "/SteamVR/") || strstr(exe, "/steamvr/")))
+        wanted = 1;
+    if (getenv("VENC_LOG"))
+        fprintf(stderr, "venc: process %s (%s): %s\n", comm, n > 0 ? exe : "?", wanted ? "encoding" : "pass-through");
     return wanted;
 }
 

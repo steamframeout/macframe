@@ -384,10 +384,8 @@ private struct GeneralTab: View {
                             .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                     Spacer()
-                    Button("Report a Problem…") {
-                        if CrashReporting.available { context.reportProblem?() } else { ProblemReport.open() }
-                    }
-                    .disabled(CrashReporting.available && context.reportProblem == nil)
+                    Button("Report a Problem…") { context.reportProblem?() }
+                        .disabled(context.reportProblem == nil)
                 }
             }
         }

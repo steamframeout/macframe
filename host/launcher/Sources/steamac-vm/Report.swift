@@ -310,6 +310,14 @@ final class ReportBundle: @unchecked Sendable {
                 if !lines.isEmpty { write("perf-stall.log", ReportBundle.scrub(lines.suffix(3000).joined(separator: "\n") + "\n")) }
             }
         }
+        // Frame Bridge (the Steam Frame Wireless Adapter's hand-over to SteamOS): its own log and QEMU's
+        if choices.launcherLogs {
+            let dir = NSHomeDirectory() + "/Library/Logs/FrameBridge"
+            for name in ["bridge.log", "qemu.out"] {
+                guard let data = FileManager.default.contents(atPath: dir + "/" + name) else { continue }
+                write("framebridge-" + name, ReportBundle.scrub(String(decoding: data.suffix(512 * 1024), as: UTF8.self)))
+            }
+        }
         // The hvc0 console is the guest's: only with "Include SteamOS logs".
         if choices.guestLogs {
             if let data = RollingLog.tail(dir: runDir, name: RollingLog.console.name, maxBytes: ReportBundle.logTail) {

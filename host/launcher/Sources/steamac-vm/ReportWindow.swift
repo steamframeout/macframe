@@ -6,7 +6,8 @@ import SwiftUI
 /// (CrashOffer, supervisor process); the control FIFO drives it in tests (ReportControl).
 @MainActor
 final class ReportModel: ObservableObject {
-    enum Phase: Equatable { case editing, working, sent(String), failed(String) }
+    /// saved: no report server in this build (CrashReporting.available false): the report is a zip on the Desktop
+    enum Phase: Equatable { case editing, working, sent(String), failed(String), saved(String) }
 
     static let emailKey = "reportEmail"
 
@@ -33,7 +34,7 @@ final class ReportModel: ObservableObject {
         email.trimmingCharacters(in: .whitespaces).range(of: "^[^@\\s]+@[^@\\s]+\\.[A-Za-z]{2,}$", options: .regularExpression) != nil
     }
     var textValid: Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10 }
-    var canSend: Bool { emailValid && textValid && phase == .editing }
+    var canSend: Bool { (emailValid || !CrashReporting.available) && textValid && phase == .editing }
     var hasWindow: Bool { context.captureScreenshot != nil }
     var savedPath: String { bundle.map { ($0.dir as NSString).abbreviatingWithTildeInPath } ?? "" }
 
@@ -58,6 +59,10 @@ final class ReportModel: ObservableObject {
         task = Task {
             guard let b = await ensureBundle() else { return }
             b.writeReport(email: address, description: text)
+            guard CrashReporting.available else {
+                phase = .saved(saveZip(b))
+                return
+            }
             status = String(localized: "Sending the report…")
             progress = 0
             do {
@@ -74,6 +79,24 @@ final class ReportModel: ObservableObject {
                 log("report: sending \(b.shortId) failed: \(error); kept in \(b.dir)")
             }
         }
+    }
+
+    /// The report folder as ~/Desktop/MacFrame-report-<id>.zip, and a new GitHub issue to attach it to.
+    private func saveZip(_ b: ReportBundle) -> String {
+        let desktop = FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask).first?.path ?? NSHomeDirectory()
+        let zip = desktop + "/MacFrame-report-\(b.shortId).zip"
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        p.arguments = ["-c", "-k", "--keepParent", b.dir, zip]
+        do { try p.run(); p.waitUntilExit() } catch { log("report: zip failed: \(error)") }
+        guard p.terminationStatus == 0, FileManager.default.fileExists(atPath: zip) else {
+            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: b.dir)])
+            return b.dir
+        }
+        log("report: saved \(zip)")
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: zip)])
+        NSWorkspace.shared.open(ProblemReport.issuesURL)
+        return zip
     }
 
     func retry() {
@@ -93,6 +116,7 @@ final class ReportModel: ObservableObject {
         switch phase {
         case .failed: kept = bundle != nil
         case .sent: sent = true
+        case .saved: kept = bundle != nil
         default: bundle?.delete()
         }
         log("report: dialog closed" + (kept ? " (report kept in \(bundle!.dir))" : ""))
@@ -125,6 +149,7 @@ struct ReportView: View {
             switch model.phase {
             case .sent(let id): sent(id)
             case .failed(let message): failed(message)
+            case .saved(let path): saved(path)
             case .editing, .working: form
             }
         }
@@ -212,7 +237,7 @@ struct ReportView: View {
                 Spacer()
                 Button("Cancel", role: .cancel) { model.close() }
                     .keyboardShortcut(.cancelAction)
-                Button("Send") { model.send() }
+                Button(CrashReporting.available ? String(localized: "Send") : String(localized: "Save Report")) { model.send() }
                     .keyboardShortcut(.defaultAction)
                     .disabled(!model.canSend)
             }
@@ -239,6 +264,19 @@ struct ReportView: View {
             Text("Mention this ID if you contact the developers about this problem.")
                 .font(.callout).foregroundStyle(.secondary)
             HStack {
+                Spacer()
+                Button("Done") { model.close() }.keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+
+    private func saved(_ path: String) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            header("checkmark.circle.fill", .green, "Report saved", nil)
+            Text("\((path as NSString).lastPathComponent) is on your Desktop. In the GitHub page that opened, describe the problem and drag the zip into the issue, or send the zip to whoever helps you.")
+                .font(.callout).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
+            HStack {
+                Button("Reveal in Finder") { NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)]) }
                 Spacer()
                 Button("Done") { model.close() }.keyboardShortcut(.defaultAction)
             }
@@ -343,7 +381,6 @@ enum CrashOffer {
         w.isReleasedWhenClosed = false
         w.delegate = delegate
         let view = OfferView(summary: CrashReporting.localizedExitSummary(status: status), report: {
-            guard CrashReporting.available else { ProblemReport.open(); w.close(); return }
             ReportSheet.present(on: w, context: context) { sent in if sent { w.close() } }
         }, close: { w.close() })
         let host = NSHostingView(rootView: view)
