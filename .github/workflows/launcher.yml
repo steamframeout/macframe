@@ -1,0 +1,44 @@
+# The launcher's Swift alone (a few minutes): compile errors show up long before the full build reaches the app.
+# libkrun's patched headers stand in for its library (the link step needs the real one, so only compiling counts).
+name: launcher
+
+on:
+  push:
+    branches: [main]
+    paths: ['host/launcher/**', 'host/libkrun/patches/**', '.github/workflows/launcher.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: launcher-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compile:
+    runs-on: macos-26
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Xcode 26
+        run: sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+      - name: libkrun headers (pinned tag + patches)
+        run: |
+          eval "$(grep -E '^(REPO|TAG|COMMIT)=' host/libkrun/build.sh)"
+          git init -q /tmp/libkrun && git -C /tmp/libkrun remote add origin "$REPO"
+          git -C /tmp/libkrun fetch -q --depth 1 origin "refs/tags/$TAG:refs/tags/$TAG"
+          git -C /tmp/libkrun checkout -q --detach "$COMMIT"
+          for p in host/libkrun/patches/*.patch; do git -C /tmp/libkrun apply "$PWD/$p"; done
+          mkdir -p /tmp/krun/include /tmp/krun/lib
+          cp /tmp/libkrun/include/libkrun*.h /tmp/krun/include/
+      - name: compile
+        run: |
+          cd host/launcher
+          ./fetch-zstd.sh
+          set +e
+          swift build -c release --scratch-path .build -Xcc -I/tmp/krun/include -Xcc "-I$GITHUB_WORKSPACE/host/vrhost/include" \
+            -Xlinker -L/tmp/krun/lib 2>&1 | tee /tmp/build.log
+          set -e
+          if grep -E "error:" /tmp/build.log | grep -v "ld: library 'krun' not found\|linker command failed\|library not found for -lkrun"; then
+            echo "Swift compile errors"; exit 1
+          fi
+          grep -q "Compiling steamac_vm\|Compiling steamac-vm\|Emitting module steamac_vm" /tmp/build.log || { echo "the launcher module was not compiled"; exit 1; }
+          echo "launcher Swift compiles (link skipped: no libkrun library here)"
