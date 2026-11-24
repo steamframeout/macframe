@@ -143,7 +143,6 @@ final class SetupAssistant: NSObject, NSWindowDelegate {
             a.window.makeKeyAndOrderFront(nil)
             for step in a.model.steps {
                 a.model.step = step
-                if step == .steamos && n == 1 { a.model.showOptions = true }
                 RunLoop.main.run(until: Date().addingTimeInterval(0.8))
                 n += 1
                 let name = "\(dir)/setup-\(n)-\(firstRun ? "first" : "frame")-\(step).png"
@@ -212,20 +211,19 @@ private struct AssistantView: View {
             sidebar
             Divider()
             VStack(spacing: 0) {
-                ScrollView {
-                    Group {
-                        switch model.step {
-                        case .welcome: WelcomeStep(model: model)
-                        case .steamos: SteamOSStep(model: model, disk: model.disk)
-                        case .frame: FrameStep(model: model)
-                        case .ready: ReadyStep(model: model)
-                        }
+                // no ScrollView: every step fits the window (SteamOS's options are a sheet)
+                Group {
+                    switch model.step {
+                    case .welcome: WelcomeStep(model: model)
+                    case .steamos: SteamOSStep(model: model, disk: model.disk)
+                    case .frame: FrameStep(model: model)
+                    case .ready: ReadyStep(model: model)
                     }
-                    .padding(.horizontal, 36)
-                    .padding(.top, 44)
-                    .padding(.bottom, 20)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .padding(.horizontal, 36)
+                .padding(.top, 44)
+                .padding(.bottom, 20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 Divider()
                 HStack {
                     if model.steps.first != model.step {
@@ -376,8 +374,21 @@ private struct SteamOSStep: View {
                         Button("Use an Existing SteamOS Disk…") { chooseExisting() }
                     }
                 }
-                DisclosureGroup("Options", isExpanded: $model.showOptions) { options.padding(.top, 8) }
+                Button("Options…") { model.showOptions = true }
+                    .buttonStyle(.link)
                     .disabled(disk.running)
+                    .sheet(isPresented: $model.showOptions) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text("SteamOS Options").font(.title2.weight(.semibold)).padding([.horizontal, .top], 20)
+                            options
+                            HStack {
+                                Spacer()
+                                Button("Done") { model.showOptions = false }.keyboardShortcut(.defaultAction)
+                            }
+                            .padding(16)
+                        }
+                        .frame(width: 540)
+                    }
             }
         }
     }
@@ -439,7 +450,7 @@ private struct SteamOSStep: View {
             SteamClientPicker(settings: model.settings)
         }
         .formStyle(.grouped)
-        .frame(minHeight: 260)
+        .frame(height: 300)
     }
 
     private func chooseLocation() {
