@@ -24,7 +24,7 @@ graphics path comes from `game-gfx`; ratings use the last session's graphics pat
 The service still accepts v1 (including previously saved sessions), storing its `gfx`/`env` as NULL.
 Invalid v2 assignments are rejected with HTTP 400; valid ones are sorted by name, last duplicate wins.
 
-Every report is kept on this Mac (`~/Library/Application Support/es.fxgam.steamac/game-stats.json`,
+Every report is kept on this Mac (`~/Library/Application Support/com.steamframeout.macframe/game-stats.json`,
 20 sessions per game) and listed in **Settings → Games**. Nothing leaves the Mac until **Share
 game statistics** is on: after the first game with a window the launcher asks once, in a window
 beside the VM window that does not take the keyboard or the captured mouse (**Share** / **Don't

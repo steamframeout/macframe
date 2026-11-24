@@ -3,14 +3,14 @@ import Combine
 import Foundation
 
 /// The launcher's preferences (Settings window), persisted in the defaults domain
-/// `es.fxgam.steamac` (~/Library/Preferences/es.fxgam.steamac.plist; STEAMAC_DEFAULTS_DOMAIN
+/// `com.steamframeout.macframe` (~/Library/Preferences/com.steamframeout.macframe.plist; STEAMAC_DEFAULTS_DOMAIN
 /// overrides it, for tests). Command-line flags override "next start" values for one run without
 /// persisting them (`overrides`). Live ("applies now") values are observed through the
 /// `@Published` publishers by the window, the gamepad bridge, the sound control and PerfStats.
 final class LauncherSettings: ObservableObject {
     /// This process's settings (the VM process's window, gamepad, sound and Settings window share it).
     static let shared = LauncherSettings()
-    static let defaultDomain = "es.fxgam.steamac"
+    static let defaultDomain = "com.steamframeout.macframe"
     /// Domain used before the bundle id change; copied once into the domain if that is still empty.
     static let legacyDomain = "dev.steamac.vm"
     static var domain: String {
@@ -538,7 +538,7 @@ final class LauncherSettings: ObservableObject {
 
     init() {
         let domain = LauncherSettings.domain
-        // The embedded/bundled Info.plist makes es.fxgam.steamac our own identifier: that domain is
+        // The embedded/bundled Info.plist makes com.steamframeout.macframe our own identifier: that domain is
         // .standard (UserDefaults refuses it as a suite name).
         defaults = domain == Bundle.main.bundleIdentifier ? .standard : (UserDefaults(suiteName: domain) ?? .standard)
         if domain == LauncherSettings.defaultDomain { LauncherSettings.migrateLegacy(into: defaults) }

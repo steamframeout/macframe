@@ -73,7 +73,7 @@ final class HIDPassthrough {
     var onChange: (() -> Void)?
     /// An input report of the active device (main thread).
     var onInput: ((UnsafeBufferPointer<UInt8>) -> Void)?
-    private let io = DispatchQueue(label: "es.fxgam.steamac.hid-passthrough")
+    private let io = DispatchQueue(label: "com.steamframeout.macframe.hid-passthrough")
 
     /// Start watching for supported devices; false if the IOHIDManager cannot be opened.
     @discardableResult

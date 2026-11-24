@@ -97,7 +97,7 @@ def archive(name, version, license_id, location, url, filename, prefixes):
 
 host = 'Contents/Frameworks'
 res = 'Contents/Resources'
-launcher = 'Contents/MacOS/steamac-vm'
+launcher = 'Contents/MacOS/MacFrame'
 krun = root / 'work/build/host-libkrun/src'
 source('libkrun', '1.19.6', 'Apache-2.0', host + '/libkrun.1.dylib',
        'https://github.com/libkrun/libkrun/tree/v1.19.6', krun)
@@ -358,7 +358,7 @@ if own_docs:
     add('steamac', '2026', 'Apache-2.0', res + '/licenses',
         'https://github.com/fxgl/steamac', own_docs)
 
-index = ['Third-party license notices for FX Steam Launcher',
+index = ['Third-party license notices for MacFrame',
          'Each listed directory contains the upstream license, copyright and notice files for this component.',
          'The SteamOS root filesystem acquired by the launcher is distributed separately by Valve.', '']
 for name, version, license_id, location, url in sorted(entries):

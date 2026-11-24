@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Check a DMG built by host/launcher/dist.sh, without starting a VM:
-#   layout       FX Steam Launcher.app + the /Applications link
+#   layout       MacFrame.app + the /Applications link
 #   signature    codesign --verify --deep --strict; every Mach-O signed the expected way
 #                (adhoc: Signature=adhoc; developer-id: one team, hardened runtime, timestamp)
 #   entitlements hypervisor, disable-library-validation, audio-input on the bundle
@@ -20,7 +20,7 @@ receipts=0
 if [[ ${1:-} == --receipts ]]; then receipts=1; shift; fi
 DMG=${1:?usage: dist-verify.sh [--receipts] <dmg> [adhoc|developer-id]}
 MODE=${2:-adhoc}
-NAME="FX Steam Launcher"
+NAME="MacFrame"
 read -r -a allowed <<<"${DIST_ALLOWED_HOMES:-runner Shared}"
 
 fails=0

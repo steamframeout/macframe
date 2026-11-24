@@ -29,7 +29,7 @@ each path.
 ## Real titles, DXMT vs stock steamac 1.9.1 (2026-10-18)
 
 Same Mac, 1280x720 windowed, one VM boot per run, runs interleaved, each title's own benchmark output. Control: the
-stock FX Steam Launcher 1.9.1 release with default settings (8 GiB guest, 4 vCPUs, KosmicKrisp), Valve's FEX, stock
+stock MacFrame 1.9.1 release with default settings (8 GiB guest, 4 vCPUs, KosmicKrisp), Valve's FEX, stock
 Proton Experimental (DXVK). DXMT: a build with only the DXMT path added, same guest, same Valve FEX. Posted in
 [fxgl/steamac#14](https://github.com/fxgl/steamac/issues/14).
 

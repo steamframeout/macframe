@@ -40,7 +40,7 @@ StonkGuy/steamac fork). The headset runs the WiVRn client.
 4. **Plug the adapter into the Mac** (USB 3 port or hub) and run `mac/frame-adapter-bridge`.
    `--scan` lists the 6 GHz networks the adapter hears, if you need to find the link.
    When it prints **READY connect the Frame's WiVRn client to 10.x.x.x port 9757**, the link is up.
-5. **Start the VM with VR on** (FX Steam Launcher fork: Settings > VR). In the WiVRn client on the headset, add the
+5. **Start the VM with VR on** (MacFrame fork: Settings > VR). In the WiVRn client on the headset, add the
    server by the address from step 4. Bonjour discovery doesn't cross the bridge, so it won't appear in the list by
    itself.
 

@@ -22,14 +22,17 @@ import SystemConfiguration
 /// Volume is kept low: one event per fingerprint per process, a small per-kind and total budget,
 /// and a persistent "already reported" list per fingerprint.
 enum CrashReporting {
-    static let dsn = "https://2af7807225b4fc150d9436d1f16165b8@sentry.fxgam.es/39"
+    /// No report server for MacFrame builds yet: reporting stays off and its controls are hidden (upstream's server is
+    /// not ours to send to). A DSN here turns it all back on.
+    static let dsn = ""
+    static var available: Bool { !dsn.isEmpty }
     static let disableEnv = "STEAMAC_SENTRY"
     static let debugEnv = "STEAMAC_SENTRY_DEBUG"
     static let runIdEnv = "STEAMAC_RUN_ID"
     static let noFlag = "--no-crash-reports"
 
     /// Settings / first-run explanation (one line) and the "What is sent" list.
-    static let summary = String(localized: "Crash reports and rare errors go to the FX Steam Launcher developers (Sentry). No personal data.")
+    static let summary = String(localized: "Crash reports and rare errors go to the MacFrame developers (Sentry). No personal data.")
     static let whatIsSent = [
         String(localized: "Crash reports of the launcher and the VM process: crash reason, stack traces, loaded libraries."),
         String(localized: "A few errors: guest GPU context lost, shader pipeline compile failures (with an excerpt of the failing Metal shader source), libkrun panics, failed disk creation or first-start setup, VM stopped unexpectedly or killed (with the Mac's memory use), SteamOS not responding."),
@@ -187,8 +190,8 @@ enum CrashReporting {
         if options.isSelftest && options.createDisk == nil && !isTest { return }
         role = Supervisor.isChild ? .vm : .launcher
         test = isTest
-        runOverride = options.noCrashReports
-            ? (options.explicit.contains(noFlag) ? noFlag : "\(disableEnv)=0") : nil
+        runOverride = !available ? "no report server in this build"
+            : options.noCrashReports ? (options.explicit.contains(noFlag) ? noFlag : "\(disableEnv)=0") : nil
         configured = true
         // Supervisor: tap stderr of both processes: the session log Report a Problem attaches
         // (always) and, while reporting is on, breadcrumbs and error patterns. Memory pressure
@@ -820,7 +823,7 @@ enum CrashReporting {
              "faultingThread": 1,
              "usedImages": [{"name": "libsystem_malloc.dylib", "path": "/usr/lib/system/libsystem_malloc.dylib"},
                             {"name": "libobjc.A.dylib", "path": "/usr/lib/libobjc.A.dylib"},
-                            {"name": "libvulkan_kosmickrisp.dylib", "path": "/Applications/FX Steam Launcher.app/Contents/Frameworks/libvulkan_kosmickrisp.dylib"}],
+                            {"name": "libvulkan_kosmickrisp.dylib", "path": "/Applications/MacFrame.app/Contents/Frameworks/libvulkan_kosmickrisp.dylib"}],
              "threads": [{"frames": [{"imageOffset": 16, "imageIndex": 0}]},
                          {"frames": [{"imageOffset": 290148, "symbol": "_xzm_xzone_malloc_freelist_outlined", "symbolLocation": 868, "imageIndex": 0},
                                      {"imageOffset": 58660, "symbol": "AutoreleasePoolPage::releaseUntil(objc_object**)", "symbolLocation": 196, "imageIndex": 1},
@@ -1199,7 +1202,7 @@ private struct LineScanner {
 }
 
 /// Fingerprints reported recently, shared by both processes
-/// (~/Library/Caches/es.fxgam.steamac/sentry/reported.json).
+/// (~/Library/Caches/com.steamframeout.macframe/sentry/reported.json).
 private enum ReportedStore {
     private static let lock = NSLock()
     private static var path: String {

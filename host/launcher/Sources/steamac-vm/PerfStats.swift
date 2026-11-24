@@ -58,7 +58,7 @@ final class PerfStats {
     private var frameBuf: [UInt8] = []
     private var lastFrameShown: CFTimeInterval = 0
     private var frameFile: UnsafeMutablePointer<FILE>?
-    private let frameQueue = DispatchQueue(label: "es.fxgam.steamac.perf-frames", qos: .utility)
+    private let frameQueue = DispatchQueue(label: "com.steamframeout.macframe.perf-frames", qos: .utility)
     private var frameTimer: DispatchSourceTimer?
     private var lastShown: CFTimeInterval = 0
     private var vsyncBase: CFTimeInterval = 0

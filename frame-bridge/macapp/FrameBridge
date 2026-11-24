@@ -18,6 +18,8 @@ PIDF="$SUP/bridge.pid"
 ROOTF="$SUP/bridge.root"      # present while the VM runs as root (adapter needed administrator rights)
 LOG="$LOGD/bridge.log"
 TITLE="Frame Bridge"
+# inside MacFrame.app (Contents/Resources/Frame Bridge.app) it speaks as MacFrame
+case "$0" in */Contents/Resources/Frame\ Bridge.app/*) TITLE="MacFrame" ;; esac
 VID=0x28de PID=0x2432
 ACCEL=hvf   # Apple's hypervisor; tcg (QEMU's emulator, slower) once hvf failed to start
 mkdir -p "$SUP" "$LOGD"
@@ -90,23 +92,23 @@ first_checks() {
   # macOS runs a just-downloaded app from a temporary read-only copy until it is moved
   case "$APP" in
     */AppTranslocation/*)
-      ask "Move Frame Bridge to your Applications folder first (drag it there in Finder), then open it again from Applications." "Quit" >/dev/null
+      ask "Move $TITLE to your Applications folder first (drag it there in Finder), then open it again from Applications." "Quit" >/dev/null
       exit 0 ;;
   esac
   if [ "$(uname -m)" != arm64 ]; then
-    ask "Frame Bridge needs a Mac with Apple silicon (M1 or later)." "Quit"; exit 1
+    ask "$TITLE needs a Mac with Apple silicon (M1 or later)." "Quit"; exit 1
   fi
   local major; major=$(sw_vers -productVersion | cut -d. -f1)
   if [ "${major:-0}" -lt 15 ]; then
-    ask "Frame Bridge needs macOS 15 Sequoia or later." "Quit"; exit 1
+    ask "$TITLE needs macOS 15 Sequoia or later." "Quit"; exit 1
   fi
   # downloaded apps are quarantined; once this app was allowed to open, its own bundled tools may run too
   xattr -dr com.apple.quarantine "$RES" 2>/dev/null
   if [ ! -x "$QEMU" ] || [ ! -f "$IMG/bridge-kernel" ] || [ ! -f "$IMG/bridge-initramfs.img" ]; then
-    ask "This copy of Frame Bridge is incomplete (missing parts inside the app). Download it again." "Quit"; exit 1
+    ask "This copy of $TITLE is incomplete (missing parts inside the app). Download it again." "Quit"; exit 1
   fi
   if [ -f "$IMG/SHA256SUMS" ] && ! (cd "$IMG" && shasum -a 256 -c SHA256SUMS >/dev/null 2>&1); then
-    ask "This copy of Frame Bridge is damaged (a checksum does not match). Download it again." "Quit"; exit 1
+    ask "This copy of $TITLE is damaged (a checksum does not match). Download it again." "Quit"; exit 1
   fi
 }
 
@@ -141,7 +143,7 @@ start_vm() {
     local line="" a
     for a in "$QEMU" "${args[@]}"; do line="$line '${a//\'/\'\\\'\'}'"; done
     line="$line >>'$LOGD/qemu.out' 2>&1 </dev/null & echo \$! > '$PIDF'"
-    as_admin "$line" "Frame Bridge needs administrator rights to take over the Steam Frame Wireless Adapter." ||
+    as_admin "$line" "$TITLE needs administrator rights to take over the Steam Frame Wireless Adapter." ||
       return 1
     touch "$ROOTF"
   else
@@ -157,7 +159,7 @@ start_vm() {
 stop_vm() {
   local p; p=$(running_pid) || return 0
   if [ -f "$ROOTF" ]; then
-    as_admin "kill $p; sleep 1; kill -9 $p 2>/dev/null; true" "Frame Bridge needs administrator rights to stop the bridge." || return 1
+    as_admin "kill $p; sleep 1; kill -9 $p 2>/dev/null; true" "$TITLE needs administrator rights to stop the bridge." || return 1
   else
     kill "$p" 2>/dev/null; sleep 1; kill -9 "$p" 2>/dev/null
   fi
@@ -262,7 +264,7 @@ Next: Set up from the headset." "OK"
 
 do_setup() {
   local b
-  b=$(ask "Frame Bridge reads the headset's wireless link settings over your Wi-Fi network. It only reads; it changes nothing on the headset.
+  b=$(ask "$TITLE reads the headset's wireless link settings over your Wi-Fi network. It only reads; it changes nothing on the headset.
 
 On the headset first:
 1. Settings > System > Enable Developer Mode
@@ -345,7 +347,7 @@ report_ready() {
 Stream address for the headset's VR client (WiVRn):
     $addr   (port 9757)
 
-The bridge keeps running in the background. Open Frame Bridge again to stop it." "Stop Bridge,Done" "Done")
+The bridge keeps running in the background. Open $TITLE again to stop it." "Stop Bridge,Done" "Done")
   [ "$b" = "Stop Bridge" ] && stop_vm
 }
 report_looking() {
@@ -353,7 +355,7 @@ report_looking() {
   while :; do
     b=$(ask "The adapter works, but it hasn't found the headset's wireless link yet.
 
-Make sure the headset is on and nearby. The bridge keeps looking in the background, and Frame Bridge tells you when it connects." "Stop Bridge,Show Log,Keep Looking" "Keep Looking")
+Make sure the headset is on and nearby. The bridge keeps looking in the background, and $TITLE tells you when it connects." "Stop Bridge,Show Log,Keep Looking" "Keep Looking")
     case "$b" in
       "Stop Bridge") stop_vm; return ;;
       "Show Log") open -e "$LOG"; return ;;
@@ -373,7 +375,7 @@ ${hit#*BRIDGE: ERROR }" "OK" >/dev/null; return ;;
 do_connect() {
   local b
   if [ ! -f "$CONF" ]; then
-    b=$(ask "First, Frame Bridge needs the headset's wireless link settings." "Cancel,Set Up Now" "Set Up Now")
+    b=$(ask "First, $TITLE needs the headset's wireless link settings." "Cancel,Set Up Now" "Set Up Now")
     [ "$b" = "Set Up Now" ] && do_setup
     return
   fi
@@ -396,7 +398,7 @@ do_connect() {
   fi
   if [ $usb_denied = 1 ]; then
     stop_vm
-    b=$(ask "macOS needs your permission for Frame Bridge to take over the adapter (your Mac's administrator password)." "Cancel,Allow" "Allow")
+    b=$(ask "macOS needs your permission for $TITLE to take over the adapter (your Mac's administrator password)." "Cancel,Allow" "Allow")
     [ "$b" = Allow ] || return
     start_vm "$CONF" 1 1 "$ACCEL" || return
     hit=$(wait_link 120)
@@ -473,9 +475,9 @@ report_shared() {
   local b
   b=$(ask "The wireless adapter now belongs to SteamOS, as if it were plugged into a PC.
 
-Start SteamOS in FX Steam Launcher (or keep it running): it picks the adapter up within a few seconds. Then pair and stream from Steam's own Steam Frame settings, exactly as on a Windows PC.
+Start SteamOS in MacFrame (or keep it running): it picks the adapter up within a few seconds. Then pair and stream from Steam's own Steam Frame settings, exactly as on a Windows PC.
 
-Frame Bridge keeps passing the adapter through in the background. Open it again to stop." "Stop,Done" "Done")
+$TITLE keeps passing the adapter through in the background. Open it again to stop." "Stop,Done" "Done")
   [ "$b" = Stop ] && stop_vm
 }
 do_share() {
@@ -487,7 +489,7 @@ do_share() {
   done
   stop_vm
   if port_busy; then
-    ask "Another program on this Mac is using port 3240 (USB/IP), which Frame Bridge needs. Quit it and try again." "OK" >/dev/null
+    ask "Another program on this Mac is using port 3240 (USB/IP), which $TITLE needs. Quit it and try again." "OK" >/dev/null
     return
   fi
   notify "Handing the adapter to SteamOS…"
@@ -497,7 +499,7 @@ do_share() {
       hvf) ACCEL=tcg; hit=$(start_share 0 tcg) ;;
       *)
         stop_vm
-        b=$(ask "macOS needs your permission for Frame Bridge to take over the adapter (your Mac's administrator password)." "Cancel,Allow" "Allow")
+        b=$(ask "macOS needs your permission for $TITLE to take over the adapter (your Mac's administrator password)." "Cancel,Allow" "Allow")
         [ "$b" = Allow ] || return
         hit=$(start_share 1 "$ACCEL") ;;
     esac
@@ -519,7 +521,7 @@ Unplug the adapter, plug it back in, and try again." "Show Log,OK" "OK")
   esac
 }
 
-# FX Steam Launcher runs "FrameBridge share" when the adapter is plugged in while SteamOS runs: hand it over with
+# MacFrame runs "FrameBridge share" when the adapter is plugged in while SteamOS runs: hand it over with
 # notifications only (an administrator dialog only if macOS refuses USB access). A bridge already running is left
 # alone, whatever its mode.
 share_quietly() {
@@ -537,7 +539,7 @@ share_quietly() {
   fi
   case "$hit" in
     *"BRIDGE: SHARED"*) notify "Steam Frame Wireless Adapter connected to SteamOS." ;;
-    *) stop_vm; notify "The Steam Frame Wireless Adapter couldn't be connected to SteamOS. Open Frame Bridge for details."; exit 1 ;;
+    *) stop_vm; notify "The Steam Frame Wireless Adapter couldn't be connected to SteamOS. Open $TITLE for details."; exit 1 ;;
   esac
   exit 0
 }

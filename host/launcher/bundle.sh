@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Assemble work/out/FX Steam Launcher.app (called by build.sh with the freshly built binary):
-#   Contents/MacOS/steamac-vm           launcher, rpath @executable_path/../Frameworks only
+# Assemble work/out/MacFrame.app (called by build.sh with the freshly built binary):
+#   Contents/MacOS/MacFrame             launcher, rpath @executable_path/../Frameworks only
 #   Contents/MacOS/steamac-vrhost       experimental VR host (GPL-3.0-or-later, separate executable,
 #                                       self-contained), only when host/vrhost/build.sh built it
 #   Contents/Frameworks/*.dylib         libkrun, libvirglrenderer, libMoltenVK, libvulkan_kosmickrisp
@@ -22,7 +22,7 @@ ROOT=$(cd "$HERE/../.." && pwd)
 OUT="$ROOT/work/out"
 KRUN_PREFIX="${KRUN_PREFIX:-$OUT/host}"
 BIN="${1:?usage: bundle.sh <steamac-vm binary>}"
-NAME="FX Steam Launcher"
+NAME="MacFrame"
 APP="$OUT/$NAME.app"
 STAGE="$OUT/.bundle.$$"
 TMP="$STAGE/$NAME.app"
@@ -50,7 +50,7 @@ cp "$PLIST" "$TMP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Add :SteamacReleaseDefaults bool true" "$TMP/Contents/Info.plist"
 printf 'APPL????' > "$TMP/Contents/PkgInfo"
 
-exe="$TMP/Contents/MacOS/steamac-vm"
+exe="$TMP/Contents/MacOS/MacFrame"
 cp "$BIN" "$exe"
 chmod u+w "$exe"
 # VR host (VRHost.swift finds it with Bundle.main.path(forAuxiliaryExecutable:)); absent = no VR in this app.

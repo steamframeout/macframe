@@ -2,7 +2,7 @@ import AppKit
 import Combine
 import SwiftUI
 
-/// New-version check: the latest GitHub release of fxgl/steamac against this launcher's
+/// New-version check: the latest GitHub release of steamframeout/macframe against this launcher's
 /// CFBundleShortVersionString. Runs in the VM process of the first boot (once per app launch, not
 /// per VM reboot) a few seconds after the window is up, at most every 6 h (also across launches),
 /// never in development builds (work/out/steamac-vm), and only while Settings > General "Check for
@@ -19,8 +19,8 @@ import SwiftUI
 final class UpdateChecker {
     static let shared = UpdateChecker()
 
-    static let latestURL = URL(string: "https://api.github.com/repos/fxgl/steamac/releases/latest")!
-    static let releasesPage = URL(string: "https://github.com/fxgl/steamac/releases")!
+    static let latestURL = URL(string: "https://api.github.com/repos/steamframeout/macframe/releases/latest")!
+    static let releasesPage = URL(string: "https://github.com/steamframeout/macframe/releases")!
     static let urlEnv = "STEAMAC_UPDATE_URL", fakeVersionEnv = "STEAMAC_FAKE_VERSION"
     static let interval: TimeInterval = 6 * 3600
     static let timeout: TimeInterval = 10
@@ -556,7 +556,7 @@ struct UpdateView: View {
                         Button("Cancel") { actions.dismiss() }.keyboardShortcut(.cancelAction)
                     }
                 case .available(let r, let current):
-                    Text("FX Steam Launcher \(r.versionString) is available — you have \(current)")
+                    Text("MacFrame \(r.versionString) is available — you have \(current)")
                         .font(.headline)
                         .fixedSize(horizontal: false, vertical: true)
                     if let subtitle = subtitle(r) {
@@ -581,7 +581,7 @@ struct UpdateView: View {
                     }
                 case .upToDate(let current):
                     Text("You're up to date").font(.headline)
-                    Text("FX Steam Launcher \(current) is the newest version available.")
+                    Text("MacFrame \(current) is the newest version available.")
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     HStack {

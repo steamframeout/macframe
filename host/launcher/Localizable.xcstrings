@@ -1781,18 +1781,18 @@
         }
       }
     },
-    "Crash reports and rare errors go to the FX Steam Launcher developers (Sentry). No personal data." : {
+    "Crash reports and rare errors go to the MacFrame developers (Sentry). No personal data." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Отчёты о сбоях и редких ошибках отправляются разработчикам FX Steam Launcher (Sentry). Без персональных данных."
+            "value" : "Отчёты о сбоях и редких ошибках отправляются разработчикам MacFrame (Sentry). Без персональных данных."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "崩溃报告和偶发错误会发送给 FX Steam Launcher 开发者（Sentry）。不含个人数据。"
+            "value" : "崩溃报告和偶发错误会发送给 MacFrame 开发者（Sentry）。不含个人数据。"
           }
         }
       }
@@ -2197,18 +2197,18 @@
         }
       }
     },
-    "Describe what went wrong. Your description, your email and the items checked below go to the FX Steam Launcher developers (sentry.fxgam.es)." : {
+    "Describe what went wrong. Your description, your email and the items checked below go to the MacFrame developers (sentry.fxgam.es)." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Опишите проблему. Ваше описание, адрес электронной почты и отмеченные ниже данные будут отправлены разработчикам FX Steam Launcher (sentry.fxgam.es)."
+            "value" : "Опишите проблему. Ваше описание, адрес электронной почты и отмеченные ниже данные будут отправлены разработчикам MacFrame (sentry.fxgam.es)."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "描述出现的问题。你的描述、电子邮件地址和下方勾选的内容将发送给 FX Steam Launcher 开发者（sentry.fxgam.es）。"
+            "value" : "描述出现的问题。你的描述、电子邮件地址和下方勾选的内容将发送给 MacFrame 开发者（sentry.fxgam.es）。"
           }
         }
       }
@@ -2696,120 +2696,120 @@
         }
       }
     },
-    "FX Steam Launcher %@ is available — you have %@" : {
+    "MacFrame %@ is available — you have %@" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "new",
-            "value" : "FX Steam Launcher %1$@ is available — you have %2$@"
+            "value" : "MacFrame %1$@ is available — you have %2$@"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Доступен FX Steam Launcher %@ — у вас версия %@"
+            "value" : "Доступен MacFrame %@ — у вас версия %@"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FX Steam Launcher %@ 已发布 — 当前版本为 %@"
+            "value" : "MacFrame %@ 已发布 — 当前版本为 %@"
           }
         }
       }
     },
-    "FX Steam Launcher %@ is the newest version available." : {
+    "MacFrame %@ is the newest version available." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FX Steam Launcher %@ — новейшая доступная версия."
+            "value" : "MacFrame %@ — новейшая доступная версия."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FX Steam Launcher %@ 已是最新版本。"
+            "value" : "MacFrame %@ 已是最新版本。"
           }
         }
       }
     },
-    "FX Steam Launcher > Check for Updates… checks at any time." : {
+    "MacFrame > Check for Updates… checks at any time." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Проверить обновления в любое время можно через FX Steam Launcher > «Проверить обновления…»."
+            "value" : "Проверить обновления в любое время можно через MacFrame > «Проверить обновления…»."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "随时可通过“FX Steam Launcher > 检查更新…”检查更新。"
+            "value" : "随时可通过“MacFrame > 检查更新…”检查更新。"
           }
         }
       }
     },
-    "FX Steam Launcher cannot start" : {
+    "MacFrame cannot start" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Не удалось запустить FX Steam Launcher"
+            "value" : "Не удалось запустить MacFrame"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FX Steam Launcher 无法启动"
+            "value" : "MacFrame 无法启动"
           }
         }
       }
     },
-    "FX Steam Launcher needs a SteamOS disk image (steamos.img, ~87 GB sparse).\n\n" : {
+    "MacFrame needs a SteamOS disk image (steamos.img, ~87 GB sparse).\n\n" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FX Steam Launcher требуется образ диска SteamOS (steamos.img, ~87 ГБ, разреженный).\n\n"
+            "value" : "MacFrame требуется образ диска SteamOS (steamos.img, ~87 ГБ, разреженный).\n\n"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FX Steam Launcher 需要 SteamOS 磁盘映像（steamos.img，约 87 GB 稀疏文件）。\n\n"
+            "value" : "MacFrame 需要 SteamOS 磁盘映像（steamos.img，约 87 GB 稀疏文件）。\n\n"
           }
         }
       }
     },
-    "FX Steam Launcher stopped unexpectedly" : {
+    "MacFrame stopped unexpectedly" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FX Steam Launcher неожиданно завершил работу"
+            "value" : "MacFrame неожиданно завершил работу"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FX Steam Launcher 意外停止"
+            "value" : "MacFrame 意外停止"
           }
         }
       }
     },
-    "FX Steam Launcher: SteamOS user steamos (disk %@)" : {
+    "MacFrame: SteamOS user steamos (disk %@)" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FX Steam Launcher: пользователь SteamOS steamos (диск %@)"
+            "value" : "MacFrame: пользователь SteamOS steamos (диск %@)"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "FX Steam Launcher：SteamOS 用户 steamos（磁盘 %@）"
+            "value" : "MacFrame：SteamOS 用户 steamos（磁盘 %@）"
           }
         }
       }
@@ -5561,34 +5561,34 @@
         }
       }
     },
-    "Quit FX Steam Launcher" : {
+    "Quit MacFrame" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Завершить FX Steam Launcher"
+            "value" : "Завершить MacFrame"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "退出 FX Steam Launcher"
+            "value" : "退出 MacFrame"
           }
         }
       }
     },
-    "Quitting FX Steam Launcher shuts SteamOS down: it resumes and shuts down cleanly. The suspended state (and a running game's unsaved progress) is not kept." : {
+    "Quitting MacFrame shuts SteamOS down: it resumes and shuts down cleanly. The suspended state (and a running game's unsaved progress) is not kept." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "При завершении FX Steam Launcher SteamOS возобновляет работу и корректно выключается. Приостановленное состояние (и несохранённый прогресс запущенной игры) не сохраняется."
+            "value" : "При завершении MacFrame SteamOS возобновляет работу и корректно выключается. Приостановленное состояние (и несохранённый прогресс запущенной игры) не сохраняется."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "退出 FX Steam Launcher 会关闭 SteamOS：它会先恢复运行，再正常关机。挂起状态（以及正在运行的游戏中未保存的进度）不会保留。"
+            "value" : "退出 MacFrame 会关闭 SteamOS：它会先恢复运行，再正常关机。挂起状态（以及正在运行的游戏中未保存的进度）不会保留。"
           }
         }
       }
@@ -5994,18 +5994,18 @@
         }
       }
     },
-    "Reset all FX Steam Launcher settings to their defaults?" : {
+    "Reset all MacFrame settings to their defaults?" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сбросить все настройки FX Steam Launcher до значений по умолчанию?"
+            "value" : "Сбросить все настройки MacFrame до значений по умолчанию?"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "将所有 FX Steam Launcher 设置还原为默认值？"
+            "value" : "将所有 MacFrame 设置还原为默认值？"
           }
         }
       }
@@ -7694,18 +7694,18 @@
         }
       }
     },
-    "SteamOS suspended — FX Steam Launcher" : {
+    "SteamOS suspended — MacFrame" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SteamOS приостановлена — FX Steam Launcher"
+            "value" : "SteamOS приостановлена — MacFrame"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SteamOS 已挂起 — FX Steam Launcher"
+            "value" : "SteamOS 已挂起 — MacFrame"
           }
         }
       }
@@ -7903,34 +7903,34 @@
         }
       }
     },
-    "Suspend freezes SteamOS and the running game at once and keeps them in memory; click the Dock icon or Resume in the menu bar to continue where you left off. Suspended state is kept while FX Steam Launcher is running: quitting the app or restarting the Mac shuts SteamOS down." : {
+    "Suspend freezes SteamOS and the running game at once and keeps them in memory; click the Dock icon or Resume in the menu bar to continue where you left off. Suspended state is kept while MacFrame is running: quitting the app or restarting the Mac shuts SteamOS down." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Приостановка одновременно замораживает SteamOS и запущенную игру и сохраняет их в памяти; нажмите значок в Dock или «Возобновить» в строке меню, чтобы продолжить с места остановки. Приостановленное состояние сохраняется, пока работает FX Steam Launcher: при завершении приложения или перезапуске Mac SteamOS выключается."
+            "value" : "Приостановка одновременно замораживает SteamOS и запущенную игру и сохраняет их в памяти; нажмите значок в Dock или «Возобновить» в строке меню, чтобы продолжить с места остановки. Приостановленное состояние сохраняется, пока работает MacFrame: при завершении приложения или перезапуске Mac SteamOS выключается."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "挂起会同时冻结 SteamOS 和正在运行的游戏，并将它们保留在内存中；点按程序坞图标或菜单栏中的“恢复”，即可从上次停止的位置继续。挂起状态仅在 FX Steam Launcher 运行期间保留：退出应用或重新启动 Mac 会关闭 SteamOS。"
+            "value" : "挂起会同时冻结 SteamOS 和正在运行的游戏，并将它们保留在内存中；点按程序坞图标或菜单栏中的“恢复”，即可从上次停止的位置继续。挂起状态仅在 MacFrame 运行期间保留：退出应用或重新启动 Mac 会关闭 SteamOS。"
           }
         }
       }
     },
-    "Suspended state is kept while FX Steam Launcher is running." : {
+    "Suspended state is kept while MacFrame is running." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Приостановленное состояние сохраняется, пока работает FX Steam Launcher."
+            "value" : "Приостановленное состояние сохраняется, пока работает MacFrame."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "挂起状态仅在 FX Steam Launcher 运行期间保留。"
+            "value" : "挂起状态仅在 MacFrame 运行期间保留。"
           }
         }
       }
@@ -8287,18 +8287,18 @@
         }
       }
     },
-    "The location is read-only. Choose a writable folder, not the mounted FX Steam Launcher installer." : {
+    "The location is read-only. Choose a writable folder, not the mounted MacFrame installer." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Это место доступно только для чтения. Выберите папку с правом записи, а не смонтированный установщик FX Steam Launcher."
+            "value" : "Это место доступно только для чтения. Выберите папку с правом записи, а не смонтированный установщик MacFrame."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此位置为只读。请选择可写文件夹，不要选择已挂载的 FX Steam Launcher 安装映像。"
+            "value" : "此位置为只读。请选择可写文件夹，不要选择已挂载的 MacFrame 安装映像。"
           }
         }
       }
@@ -8581,18 +8581,18 @@
         }
       }
     },
-    "This development build never checks at startup; FX Steam Launcher > Check for Updates… does." : {
+    "This development build never checks at startup; MacFrame > Check for Updates… does." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Эта сборка для разработки никогда не проверяет обновления при запуске; проверить их можно через FX Steam Launcher > «Проверить обновления…»."
+            "value" : "Эта сборка для разработки никогда не проверяет обновления при запуске; проверить их можно через MacFrame > «Проверить обновления…»."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此开发版不会在启动时检查更新；可通过“FX Steam Launcher > 检查更新…”检查。"
+            "value" : "此开发版不会在启动时检查更新；可通过“MacFrame > 检查更新…”检查。"
           }
         }
       }
@@ -9512,18 +9512,18 @@
         }
       }
     },
-    "When FX Steam Launcher is in the background" : {
+    "When MacFrame is in the background" : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Когда FX Steam Launcher в фоновом режиме"
+            "value" : "Когда MacFrame в фоновом режиме"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "当 FX Steam Launcher 在后台时"
+            "value" : "当 MacFrame 在后台时"
           }
         }
       }
@@ -10568,18 +10568,18 @@
         }
       }
     },
-    "the SteamOS disk %@ is in use by another FX Steam Launcher (or steamac-vm). Quit it first: two VMs writing one disk corrupt its file systems." : {
+    "the SteamOS disk %@ is in use by another MacFrame (or steamac-vm). Quit it first: two VMs writing one disk corrupt its file systems." : {
       "localizations" : {
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "диск SteamOS %@ используется другим FX Steam Launcher (или steamac-vm). Сначала завершите его работу: две ВМ, записывающие данные на один диск, повреждают его файловые системы."
+            "value" : "диск SteamOS %@ используется другим MacFrame (или steamac-vm). Сначала завершите его работу: две ВМ, записывающие данные на один диск, повреждают его файловые системы."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SteamOS 磁盘 %@ 正被另一个 FX Steam Launcher（或 steamac-vm）使用。请先退出它：两个虚拟机同时写入同一磁盘会损坏其文件系统。"
+            "value" : "SteamOS 磁盘 %@ 正被另一个 MacFrame（或 steamac-vm）使用。请先退出它：两个虚拟机同时写入同一磁盘会损坏其文件系统。"
           }
         }
       }

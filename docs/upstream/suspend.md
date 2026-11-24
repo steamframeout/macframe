@@ -1,7 +1,7 @@
 # Suspend
 
 **How:** Settings → General → “When closing the window” → **Suspend** — closing the window then
-suspends the VM instead of shutting it down; or use **FX Steam Launcher → Suspend** (Ctrl+Cmd+S,
+suspends the VM instead of shutting it down; or use **MacFrame → Suspend** (Ctrl+Cmd+S,
 works even when the guest has the keyboard). `krun_pause` (libkrun patch 0016) stops all vCPUs and
 guest audio, the window is hidden, and a ⏸ icon appears in the menu bar: “SteamOS suspended”,
 since when and how much memory is in use, **Resume**, **Shut Down SteamOS**. A suspended VM uses
@@ -24,7 +24,7 @@ After that adjustment, timesyncd synchronizes on its own.
 (the guest resumes and shuts down normally) or **Cancel** (it remains suspended). Logging out,
 restarting, and shutting down the Mac do not prompt.
 
-**Limitations:** the state lives only in memory while FX Steam Launcher is running — it is not
+**Limitations:** the state lives only in memory while MacFrame is running — it is not
 saved to disk (guest memory and host GPU state — virglrenderer, MoltenVK, Metal — are not
 serialized). Quitting the app, an app crash, logging out, or shutting down the Mac is an ordinary
 SteamOS shutdown; unsaved game progress is lost. All guest memory remains occupied while the VM

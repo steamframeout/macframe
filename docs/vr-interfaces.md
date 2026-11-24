@@ -22,7 +22,7 @@ Change it by editing this file; add a line to the change log at the bottom (who,
   `host/vrhost/include/vrlink.h`, which is dual-licensed Apache-2.0 OR GPL-3.0-or-later so both sides can include it).
 * `steamac-vm` launches `steamac-vrhost` as a child (`posix_spawn`), and kills it with the VM. **[implemented, vr-int]**
   `host/launcher/Sources/steamac-vm/VRHost.swift`: Settings > Advanced "VR (experimental)" / `--vr` (default off; DXMT
-  path only), executable `Contents/MacOS/steamac-vrhost`, log `~/Library/Logs/es.fxgam.steamac/steamac-vrhost.log`.
+  path only), executable `Contents/MacOS/steamac-vrhost`, log `~/Library/Logs/com.steamframeout.macframe/steamac-vrhost.log`.
   The host stops when its link fd reaches end-of-file: steamac-vm's end is `FD_CLOEXEC` and nothing else holds it, so
   libkrun's `_exit()` at VM stop ends the host without extra code; `VRHost.stop()` (close, then SIGTERM, SIGKILL) is
   for the launcher's own exit paths. `--selftest-vr` checks spawn, `VRL_HELLO` and teardown.

@@ -14,6 +14,10 @@ struct CrashReportsToggle: View {
     @State private var showDetails = false
 
     var body: some View {
+        if CrashReporting.available { content }
+    }
+
+    @ViewBuilder private var content: some View {
         let toggle = Toggle(isOn: $settings.sendCrashReports) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Send crash reports and diagnostics")

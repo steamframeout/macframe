@@ -127,7 +127,7 @@ General), the pill appears immediately. While a new disk is being prepared or th
 being downloaded / installed, clicks and keypresses do not collapse the overlay, and an overlay
 previously collapsed by clicking expands automatically (`overlay: expanded for
 steam-download`); one collapsed via View → Show Boot Progress remains a pill until `ready`. Before
-`ready`, the window title repeats the stage: “FX Steam Launcher — Downloading Steam update 70%”,
+`ready`, the window title repeats the stage: “MacFrame — Downloading Steam update 70%”,
 “— Starting Steam…”, “— Shutting down…”. The log records `overlay: collapsed to pill (click)` /
 `expanded from pill`. After `ready`, if the window has had no picture for ≥ 3 s (scanout is off, or
 no frame has arrived after scanout was set or resized), or the displayed frame has been black for
@@ -176,7 +176,7 @@ returning to Steam, capture is released automatically. **Mouse** menu:
 - **Capture / Release Mouse Now** — same as Ctrl+Cmd+G.
 
 These and all other settings are in the **Settings** window (see below), domain
-`es.fxgam.steamac` (`defaults read es.fxgam.steamac`); on first launch they are copied once from
+`com.steamframeout.macframe` (`defaults read com.steamframeout.macframe`); on first launch they are copied once from
 the previous domain `dev.steamac.vm`. Metal stores the shader cache by app identifier, so after
 changing the identifier, the first launch of games compiles shaders again (one “cold” start).
 `--auto-capture on|off` overrides the default for one launch.
@@ -191,7 +191,7 @@ SSH is toggled with one switch: **Settings → Advanced → Enable SSH** (or `--
 `--no-ssh`). On each boot the launcher passes `steamac.ssh=0|1`: with 0, the Mac port is not opened
 at all (gvproxy without forwarding), and initramfs masks sshd in SteamOS. By default SSH is enabled
 in the dev launcher (`work/out/steamac-vm`, `./run.sh`, port 2222) and disabled in
-`FX Steam Launcher.app` (the `SteamacReleaseDefaults` key in Info.plist, set by `bundle.sh`). When
+`MacFrame.app` (the `SteamacReleaseDefaults` key in Info.plist, set by `bundle.sh`). When
 enabled, the launcher generates a password for user `steamos` (20 characters, SecRandomCopyBytes),
 stores it in the Keychain separately for each disk (by its GPT GUID), and on the next boot passes
 only its SHA-512 crypt hash to the guest (“config payload” disk, `steamac.config=1`; the guest

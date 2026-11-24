@@ -101,7 +101,7 @@ enum Provision {
 }
 
 /// Generated password of the guest user steamos, one per disk (Keychain generic password,
-/// service es.fxgam.steamac.guest-password, account = the disk's GPT GUID). The plaintext is
+/// service com.steamframeout.macframe.guest-password, account = the disk's GPT GUID). The plaintext is
 /// kept so Settings can show it; the guest only ever gets its SHA-512-crypt hash. State in the
 /// item's generic attribute: "pending" until a boot reports `config applied`, then "applied".
 enum GuestPassword {
@@ -162,7 +162,7 @@ enum GuestPassword {
         var q = query(disk)
         q[kSecValueData as String] = Data(pw.utf8)
         q[kSecAttrGeneric as String] = Data(State.pending.rawValue.utf8)
-        q[kSecAttrLabel as String] = String(localized: "FX Steam Launcher: SteamOS user steamos (disk \(disk))")
+        q[kSecAttrLabel as String] = String(localized: "MacFrame: SteamOS user steamos (disk \(disk))")
         let status = SecItemAdd(q as CFDictionary, nil)
         guard status == errSecSuccess else {
             let detail = SecCopyErrorMessageString(status, nil) as String? ?? "error \(status)"

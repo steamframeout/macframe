@@ -39,7 +39,7 @@ What is sent:
   a crash: only a log line, with no event and no Report a Problem window. Neither is SIGPIPE (both
   processes ignore it: a closed output pipe — the terminal, or the supervisor's stderr channel after
   the supervisor was killed — only fails the write; the VM process then logs to
-  `~/Library/Logs/es.fxgam.steamac/steamac-vm.log` or drops the lines, and lets the guest finish
+  `~/Library/Logs/com.steamframeout.macframe/steamac-vm.log` or drops the lines, and lets the guest finish
   shutting down; STEAMAC-10). SIGKILL generates a
   warning-level `vm-killed` event, “VM process killed (SIGKILL — memory pressure or force quit)”: 
   whether the kernel killed it for memory (jetsam, `NOTE_EXIT_DETAIL` from the supervisor's kqueue),
@@ -56,7 +56,7 @@ What is sent:
   VM refused because its disk is in use exits with status 4: the explanation, no report.
 - Every event includes the last ~200 lines of launcher stderr as breadcrumbs (`[steamac-vm]`,
   `[mvk-*]`, libkrun/virglrenderer warnings, startup stages) and tags: version
-  (`es.fxgam.steamac@<CFBundleShortVersionString>+<git sha>`), environment, and `build_kind` tag:
+  (`com.steamframeout.macframe@<CFBundleShortVersionString>+<git sha>`), environment, and `build_kind` tag:
   `release` — only a `dist.sh` build with notarization (Info.plist `SteamacDistTeamID`, and the
   running code's signature is Developer ID for that team, checked with `SecCodeCheckValidity`),
   `source-build` — any other `.app` (`bundle.sh`, ad-hoc/re-signed copies, `dist.sh --no-notarize`),

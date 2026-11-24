@@ -63,7 +63,7 @@ This expected rejection is logged only; all other signature failures still repor
    `compatible=steamos-aarch64`, the version, and the slot size are checked.
 3. Official desync (`fetch-desync.sh`, pinned version and sha256) assembles the 10 GB `rootfs.img`
    from Valve's chunk stores (~4.4 GB of data); the chunk cache is `desync/` in
-   `~/Library/Caches/es.fxgam.steamac` for a disk on the home volume, otherwise in `<disk>.cache` next
+   `~/Library/Caches/com.steamframeout.macframe` for a disk on the home volume, otherwise in `<disk>.cache` next
    to the disk (an external drive then needs no internal space for it; the folder is removed after
    success), so Stop/Resume (or rerunning the command after Ctrl+C) continues where it left off; a
    complete `<disk>.rootfs-tmp` left by an attempt that failed later is deleted first (desync never

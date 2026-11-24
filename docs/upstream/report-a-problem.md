@@ -3,7 +3,7 @@
 If something does not work, send a report to the developers directly from the launcher:
 **Help → Report a Problem…** (or from the app menu), the **Report a Problem…** button in
 Settings → General, the **Report…** link on the “SteamOS is not responding…” card, and the
-**Report…** button in the “FX Steam Launcher stopped unexpectedly” window that appears after
+**Report…** button in the “MacFrame stopped unexpectedly” window that appears after
 the VM exits unexpectedly (crash, error). The dialog has:
 email (required, remembered on this Mac so the developers can reply), a description (what you did,
 what you expected, what happened), and checkboxes for attachments:
@@ -65,7 +65,7 @@ disabled (an explicit user action: the SDK and crash handler do not start in tha
 limited to 20 MB (older portions of logs are trimmed first, then the screenshot and SteamOS archive are
 dropped); on an HTTP 413 response, the limit is halved and the report is sent again. After sending, a
 short Report ID is shown (the first 8 characters of the event ID). If sending fails, the folder remains
-at `~/Library/Logs/es.fxgam.steamac/reports/<date>-<ID>/` (`report.json` with the email and description
+at `~/Library/Logs/com.steamframeout.macframe/reports/<date>-<ID>/` (`report.json` with the email and description
 plus files); the dialog offers **Retry** and **Reveal in Finder**, and the folder can be emailed.
 
 How it works: the supervisor always pipes stderr from both processes and writes it to

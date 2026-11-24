@@ -370,7 +370,7 @@ jobs:
           ./build.sh host
       - name: Launcher self-tests (no VM)
         run: |
-          app="work/out/FX Steam Launcher.app/Contents/MacOS/steamac-vm"
+          app="work/out/MacFrame.app/Contents/MacOS/MacFrame"
           for t in graphics-path metal-cache game-layers remote-play vr; do
             echo "=== --selftest-$t"
             "$app" "--selftest-$t"

@@ -941,7 +941,7 @@ extension WindowController {
     }
 
     /// Right-drag mouse-look (auto mode, game focused). Off with
-    /// `defaults write es.fxgam.steamac rightDragMouseLook -bool false`.
+    /// `defaults write com.steamframeout.macframe rightDragMouseLook -bool false`.
     private var rightDragMouseLook: Bool {
         mouseMode == .auto && focusedGame != nil
             && (UserDefaults.standard.object(forKey: "rightDragMouseLook") as? Bool ?? true)
@@ -1253,7 +1253,9 @@ enum MainMenu {
         appMenu.addItem(item("Check for Updates…", checkForUpdates, target))
         appMenu.addItem(.separator())
         appMenu.addItem(item("Settings…", settings, target, key: ","))
-        appMenu.addItem(item("Report a Problem…", report, target))
+        appMenu.addItem(ProblemReport.menuItem(report, target))
+        appMenu.addItem(.separator())
+        appMenu.addItem(item("Steam Frame Setup…", #selector(FrameSetupMenu.open(_:)), FrameSetupMenu.shared))
         if FrameBridgeLauncher.appURL != nil {
             appMenu.addItem(item("Steam Frame Wireless Adapter…", #selector(FrameBridgeLauncher.open(_:)), FrameBridgeLauncher.shared))
         }
@@ -1268,7 +1270,7 @@ enum MainMenu {
         appMenu.addItem(.separator())
         // Lifecycle.applicationShouldTerminate decides (shut down; asks first while suspended).
         // While the VM window has the keyboard, Cmd+Q goes to the guest like every key.
-        appMenu.addItem(NSMenuItem(title: String(localized: "Quit FX Steam Launcher"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        appMenu.addItem(NSMenuItem(title: String(localized: "Quit MacFrame"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         addEditAndWindowMenus(main)
         let viewItem = NSMenuItem()
         main.insertItem(viewItem, at: 2)
@@ -1281,7 +1283,7 @@ enum MainMenu {
         viewMenu.addItem(item("Show Metal Performance HUD (Ctrl+Cmd+P)", metalHUD, target))
         adoptHUDMenuItems(target: target, metalHUD: metalHUD)
         let help = NSMenu(title: String(localized: "Help", comment: "Application help menu"))
-        help.addItem(item("Report a Problem…", report, target))
+        help.addItem(ProblemReport.menuItem(report, target))
         let helpItem = NSMenuItem()
         helpItem.submenu = help
         main.addItem(helpItem)
@@ -1300,7 +1302,7 @@ enum MainMenu {
         if FrameBridgeLauncher.appURL != nil {
             appMenu.addItem(item("Steam Frame Wireless Adapter…", #selector(FrameBridgeLauncher.open(_:)), FrameBridgeLauncher.shared))
         }
-        appMenu.addItem(NSMenuItem(title: String(localized: "Quit FX Steam Launcher"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+        appMenu.addItem(NSMenuItem(title: String(localized: "Quit MacFrame"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         addEditAndWindowMenus(main)
         NSApp.mainMenu = main
     }
@@ -1366,9 +1368,30 @@ enum MainMenu {
         }
     }
 
-    private static func item(_ title: LocalizedStringResource, _ action: Selector, _ target: AnyObject, key: String = "") -> NSMenuItem {
+    static func item(_ title: LocalizedStringResource, _ action: Selector, _ target: AnyObject, key: String = "") -> NSMenuItem {
         let i = NSMenuItem(title: String(localized: title), action: action, keyEquivalent: key)
         i.target = target
         return i
+    }
+}
+
+/// "Report a Problem…" without a report server (CrashReporting.available false): a new GitHub issue on the MacFrame
+/// repository, with the log folder shown in Finder to attach from.
+final class ProblemReport: NSObject {
+    static let shared = ProblemReport()
+    static let issuesURL = URL(string: "https://github.com/steamframeout/macframe/issues/new")!
+
+    static func menuItem(_ report: Selector, _ target: AnyObject) -> NSMenuItem {
+        CrashReporting.available ? MainMenu.item("Report a Problem…", report, target)
+            : MainMenu.item("Report a Problem…", #selector(open(_:)), shared)
+    }
+
+    @objc func open(_ sender: Any?) { Self.open() }
+
+    static func open() {
+        let logs = (AppBundle.logPath as NSString).deletingLastPathComponent
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: AppBundle.logPath)])
+        NSWorkspace.shared.open(issuesURL)
+        log("report: opened \(issuesURL) and \(logs)")
     }
 }

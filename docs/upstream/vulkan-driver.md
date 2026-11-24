@@ -12,7 +12,7 @@ driver's patch revision.
 Before Metal initialises, the launcher checks that its runtime compiler's module cache
 (`DARWIN_USER_CACHE_DIR/<bundle id>/com.apple.metalfe`, including existing hash directories and
 `.pcm` files) is writable. If permissions, ACLs or immutable file flags block it, the launcher logs
-the failing path and redirects Metal to `~/Library/Caches/es.fxgam.steamac/metal-compiler`.
+the failing path and redirects Metal to `~/Library/Caches/com.steamframeout.macframe/metal-compiler`.
 It does not delete the old cache or change its permissions. This uses Metal's optional cache-path
 SPI; if the override is unavailable or the replacement is also unwritable, that is logged and
 shader compilation errors remain reportable. `work/out/steamac-vm --selftest-metal-cache` reproduces

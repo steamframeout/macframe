@@ -6,7 +6,7 @@ startup from `https://api.github.com/repos/fxgl/steamac/releases/latest` (unauth
 timeout; drafts and prereleases are excluded) and compares its `vX.Y[.Z]` tag with its own version
 (`CFBundleShortVersionString`, numerically: 1.3.10 > 1.3.9). If a new version is available, a window
 appears next to the VM window (not over it if there is room on screen; without taking focus — the
-keyboard and captured mouse remain with the VM): “FX Steam Launcher X.Y is available — you have …”,
+keyboard and captured mouse remain with the VM): “MacFrame X.Y is available — you have …”,
 with the release description and buttons **Download** (opens the release's `.dmg` in a browser, or
 the release page otherwise), **Skip This Version** (this version is no longer offered at startup),
 and **Remind Me Later** (offers it again at the next check). The app menu's **Check for Updates…**

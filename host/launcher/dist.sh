@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Distributable FX Steam Launcher: a copy of work/out/FX Steam Launcher.app (build.sh / bundle.sh)
+# Distributable MacFrame: a copy of work/out/MacFrame.app (build.sh / bundle.sh)
 # re-signed with a Developer ID (hardened runtime, secure timestamp), notarized and stapled, inside
 # a signed, notarized and stapled DMG with an /Applications link:
-#   work/out/dist/FX Steam Launcher.app
+#   work/out/dist/MacFrame.app
 #   work/out/dist/FX-Steam-Launcher-<CFBundleShortVersionString>.dmg
 # The copy drops the dev-only SteamacBuildOut Info.plist key (this build tree's path). Every nested
 # Mach-O (Frameworks dylibs, helper tools in Resources) is signed before the bundle, so helpers
@@ -39,7 +39,7 @@ set -euo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
 OUT="$ROOT/work/out"
-NAME="FX Steam Launcher"
+NAME="MacFrame"
 SRC="$OUT/$NAME.app"
 DIST="$OUT/dist"
 ENTITLEMENTS="$HERE/steamac-vm.entitlements"

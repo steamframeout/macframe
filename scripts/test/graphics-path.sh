@@ -3,8 +3,8 @@
 # Checks that a plain `open` of the app starts the graphics path saved in Settings (Advanced > Graphics path):
 # for each value, write it to the app's defaults, open the app with --selftest-graphics-path only, and expect
 # its PASS line naming that path. The previously saved value is restored afterwards.
-# usage: scripts/test/graphics-path.sh [APP]   default: work/out/FX Steam Launcher.app
-APP=${1:-"work/out/FX Steam Launcher.app"}
+# usage: scripts/test/graphics-path.sh [APP]   default: work/out/MacFrame.app
+APP=${1:-"work/out/MacFrame.app"}
 DOM=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Contents/Info.plist") || exit 1
 old=$(defaults read "$DOM" graphicsPath 2>/dev/null)
 out=$(mktemp); fail=0

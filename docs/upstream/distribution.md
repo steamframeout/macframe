@@ -1,6 +1,6 @@
 # Distribution (DMG)
 
-`host/launcher/dist.sh` turns the built `work/out/FX Steam Launcher.app` into the downloadable
+`host/launcher/dist.sh` turns the built `work/out/MacFrame.app` into the downloadable
 `work/out/dist/FX-Steam-Launcher-<version>.dmg` (the app + a link to `/Applications`). A copy of the
 bundle without the `SteamacBuildOut` key (the path to this build tree) is re-signed with Developer ID,
 hardened runtime, and a secure timestamp: first all nested Mach-O files (`Frameworks/*.dylib`, helper

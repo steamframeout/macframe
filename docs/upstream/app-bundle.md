@@ -1,7 +1,7 @@
-# FX Steam Launcher.app
+# MacFrame.app
 
-`host/launcher/build.sh` (and `./build.sh host`) builds `work/out/FX Steam Launcher.app` in
-addition to `work/out/steamac-vm` (`host/launcher/bundle.sh`): `es.fxgam.steamac`, libraries
+`host/launcher/build.sh` (and `./build.sh host`) builds `work/out/MacFrame.app` in
+addition to `work/out/steamac-vm` (`host/launcher/bundle.sh`): `com.steamframeout.macframe`, libraries
 (libkrun, libvirglrenderer, libMoltenVK, libepoxy) in `Contents/Frameworks` via `@rpath`, and in
 `Contents/Resources` — gvproxy, the `Image` kernel, `initramfs.cpio.gz`, `steamac-layer.img`,
 desync, and Valve's CA for disk creation (licenses are in `Resources/licenses`); the icon:
@@ -12,16 +12,16 @@ ad-hoc signing with hypervisor + disable-library-validation entitlements. The ap
 
 Launching from Finder (without arguments) uses the kernel, initramfs, and layer from the bundle,
 and the SteamOS disk from Settings → Advanced → Disk image. By default:
-`~/Library/Application Support/es.fxgam.steamac/steamos.img`; otherwise, the repository's
+`~/Library/Application Support/com.steamframeout.macframe/steamos.img`; otherwise, the repository's
 `work/out/steamos.img` (next to the bundle or where it was built). If there is no disk, a
 first-launch window offers **Create New Disk…** (see the next section) or **Use Existing Disk…**
 (the image is used in place and never copied; `scripts/build-image.sh` also builds one). In this
 mode, the guest console and launcher log are written to
-`~/Library/Logs/es.fxgam.steamac/steamac-vm.log`; SIGUSR1 frame dumps go there too. `./run.sh`
+`~/Library/Logs/com.steamframeout.macframe/steamac-vm.log`; SIGUSR1 frame dumps go there too. `./run.sh`
 and `work/out/steamac-vm` work as before (window settings also apply to them unless overridden by
 flags).
 
-If the image is on an external disk, on the first launch from Finder macOS asks “FX Steam Launcher
+If the image is on an external disk, on the first launch from Finder macOS asks “MacFrame
 would like to access files on a removable volume” — allow it (the VM waits for the disk to open
 until you respond). Signing is ad-hoc, so macOS may ask again after the bundle is rebuilt.
 

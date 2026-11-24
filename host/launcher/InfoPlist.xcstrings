@@ -33,7 +33,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Discover Steam Link and Remote Play devices on your local network and connect them to Steam in the SteamOS virtual machine when LAN Remote Play is enabled."
+            "value" : "Discover Steam Link and Remote Play devices on your local network and connect them, including a Steam Frame headset, to Steam in the SteamOS virtual machine."
           }
         },
         "ru" : {

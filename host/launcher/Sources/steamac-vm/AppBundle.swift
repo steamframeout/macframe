@@ -3,7 +3,7 @@ import Darwin
 import Foundation
 import UniformTypeIdentifiers
 
-/// Running inside "FX Steam Launcher.app" (build.sh / bundle.sh): the kernel, initramfs, layer
+/// Running inside "MacFrame.app" (build.sh / bundle.sh): the kernel, initramfs, layer
 /// disk, gvproxy, desync and Valve's RAUC CA are bundled in Contents/Resources; the SteamOS disk
 /// comes from Settings > Advanced "Disk image", else the default locations below. Never copied
 /// anywhere: the user picks an existing image or creates a new one (DiskCreator).
@@ -95,7 +95,7 @@ enum AppBundle {
     }
 
     /// Finder / `open` launch: stdout and stderr are /dev/null, so the guest console and the
-    /// launcher log are appended to ~/Library/Logs/es.fxgam.steamac/steamac-vm.log instead
+    /// launcher log are appended to ~/Library/Logs/com.steamframeout.macframe/steamac-vm.log instead
     /// (rotated at 64 MiB). Running Contents/MacOS/steamac-vm from a shell keeps the terminal/pipes.
     static var outputDiscarded: Bool {
         var null = stat(), out = stat(), err = stat()
@@ -119,7 +119,7 @@ enum AppBundle {
         dup2(fd, STDERR_FILENO)
         close(fd)
         let stamp = ISO8601DateFormatter().string(from: Date())
-        log("---- \(stamp) FX Steam Launcher started (pid \(getpid()), \(Bundle.main.bundlePath))")
+        log("---- \(stamp) MacFrame started (pid \(getpid()), \(Bundle.main.bundlePath))")
     }
 
     /// A launch error the user must see: an alert when launched from Finder / `open` (the log is not
@@ -146,6 +146,15 @@ enum FirstRun {
         app.setActivationPolicy(.regular)
         MainMenu.installMinimal()
         app.activate()
+        // MacFrame's setup assistant (welcome, SteamOS, Steam Frame, ready); STEAMAC_FIRST_RUN_ALERT=1 keeps the
+        // plain alert (Create / Use Existing / Quit) for scripted runs
+        if ProcessInfo.processInfo.environment["STEAMAC_FIRST_RUN_ALERT"] != "1" {
+            guard let path = MainActor.assumeIsolated({ SetupAssistant.runModal(settings: settings) }) else {
+                log("first run: setup assistant closed; quitting")
+                exit(0)
+            }
+            boot(path, settings: settings)
+        }
         let alert = makeAlert(settings: settings)
         while true {
             let choice = alert.runModal()
@@ -164,14 +173,19 @@ enum FirstRun {
                 exit(0)
             }
             guard let path = chosen else { continue }
-            settings.diskImage = path
-            log("first run: disk image \(path)")
-            // Tell the supervisor to start the VM now (same marker as a guest reboot).
-            if let dir = Supervisor.runDir {
-                FileManager.default.createFile(atPath: Supervisor.rebootMarker(dir), contents: Data(Supervisor.firstRunMarker.utf8))
-            }
-            exit(0)
+            boot(path, settings: settings)
         }
+    }
+
+    /// The chosen disk becomes the configured one and the supervisor starts the VM now.
+    private static func boot(_ path: String, settings: LauncherSettings) -> Never {
+        settings.diskImage = path
+        log("first run: disk image \(path)")
+        // Tell the supervisor to start the VM now (same marker as a guest reboot).
+        if let dir = Supervisor.runDir {
+            FileManager.default.createFile(atPath: Supervisor.rebootMarker(dir), contents: Data(Supervisor.firstRunMarker.utf8))
+        }
+        exit(0)
     }
 
     /// The first-run alert (also captured by --selftest-settings).
@@ -179,7 +193,7 @@ enum FirstRun {
         let alert = NSAlert()
         alert.messageText = String(localized: "No SteamOS disk image")
         let looked = AppBundle.defaultDiskCandidates().map { "• " + ($0 as NSString).abbreviatingWithTildeInPath }
-        var info = String(localized: "FX Steam Launcher needs a SteamOS disk image (steamos.img, ~87 GB sparse).\n\n")
+        var info = String(localized: "MacFrame needs a SteamOS disk image (steamos.img, ~87 GB sparse).\n\n")
         if !settings.diskImage.isEmpty {
             let path = (settings.diskImage as NSString).abbreviatingWithTildeInPath
             info += String(localized: "The image chosen in Settings is not readable:\n\(path)\n\n")

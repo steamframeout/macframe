@@ -132,7 +132,7 @@ Steam 启动前，`/usr/lib/steamac/mac-clock-format` 更新该账号
 百分比、进度条、明细行如 `378 / 564 MB · 1.9 MB/s`；输入仍到达客户机）。点按小条或 显示 → 显示启动进度
 可再展开；关闭覆盖层后（设置 > 通用），直接显示小条。新磁盘准备中或 Steam 客户端
 下载 / 安装期间，点按与按键不收起覆盖层，之前被点按收起的覆盖层会自动展开（`overlay: expanded for
-steam-download`）；经 显示 → 显示启动进度收起的则保持小条直到 `ready`。`ready` 之前窗口标题复述阶段：“FX Steam Launcher — 正在下载 Steam 更新 70%”、
+steam-download`）；经 显示 → 显示启动进度收起的则保持小条直到 `ready`。`ready` 之前窗口标题复述阶段：“MacFrame — 正在下载 Steam 更新 70%”、
 “— 正在启动 Steam…”、“— 正在关机…”。日志记录 `overlay: collapsed to pill (click)` /
 `expanded from pill`。`ready` 之后，若窗口 ≥ 3 秒无画面（scanout 关闭，或设置/调整大小后无帧到达），或所显示帧黑屏
 ≥ 5 秒（64 × 40 点稀疏采样，≥ 99.5% 亮度 < 8/255，每秒至多 4 次，约 3 µs），且焦点不在游戏中、客户机未睡 /
@@ -164,7 +164,7 @@ gamescope 会话中（游戏模式与桌面模式）：会话结束时（切换�
 - **立即捕获或释放鼠标（Ctrl+Cmd+G）** — 同 Ctrl+Cmd+G。
 
 这些与所有其他设置都在**设置**窗口（见下），域为
-`es.fxgam.steamac`（`defaults read es.fxgam.steamac`）；首次启动时从旧域 `dev.steamac.vm`
+`com.steamframeout.macframe`（`defaults read com.steamframeout.macframe`）；首次启动时从旧域 `dev.steamac.vm`
 一次性拷贝。Metal 按应用标识存着色器缓存，改标识后游戏首次启动会重新编译着色器（一次“冷”启动）。
 `--auto-capture on|off` 覆盖单次启动的默认值。
 `--mouse tablet` — 绝对平板（gamescope 不理会，只适用于客户机其他合成器），
@@ -177,7 +177,7 @@ gamescope 会话中（游戏模式与桌面模式）：会话结束时（切换�
 SSH 一键开关：**设置 → 高级 → 启用 SSH**（或 `--ssh-port N` /
 `--no-ssh`）。每次启动时启动器传递 `steamac.ssh=0|1`：为 0 时 Mac 上根本不开端口
 （无转发的 gvproxy），initramfs 在 SteamOS 中屏蔽 sshd。开发版启动器（`work/out/steamac-vm`、`./run.sh`，端口 2222）默认开启，
-`FX Steam Launcher.app` 默认关闭（Info.plist 中 `SteamacReleaseDefaults` 键，由 `bundle.sh` 设置）。开启后，
+`MacFrame.app` 默认关闭（Info.plist 中 `SteamacReleaseDefaults` 键，由 `bundle.sh` 设置）。开启后，
 启动器为 `steamos` 用户生成密码（20 字符，SecRandomCopyBytes），
 按磁盘 GPT GUID 分别存于钥匙串，下次启动只把其 SHA-512 crypt 哈希传给客户机（“配置载荷”盘，`steamac.config=1`；客户机回复
 `config applied`）。设置中显示用户、密码（显示/拷贝）、现成命令
@@ -213,14 +213,14 @@ Mac 版 Steam 自身的 UDP 27036 广播不会回灌客户机。
 
 ## 设置窗口
 
-**FX Steam Launcher → 设置…**（Cmd+, ——客户机持有键盘时也可用）。每项标注“立即生效”或“下次启动时生效”。
+**MacFrame → 设置…**（Cmd+, ——客户机持有键盘时也可用）。每项标注“立即生效”或“下次启动时生效”。
 若改了后一组中的任何项，底部出现 **重启虚拟机以应用**：
 客户机经电源键正常关机，监管器用新值重新启动虚拟机（**重启虚拟机**菜单项同理）。命令行标志优先于保存值，但仅对当次启动有效：字段旁显示“已被命令行覆盖
 （--cpus 6）”。
 
 | 选项卡 | 立即生效 | 下次启动时生效 |
 |---|---|---|
-| 通用 | 开关机覆盖层；GPU 空闲“仍在工作 — 正在加载或编译着色器…”指示；“当 FX Steam Launcher 在后台时”：**静音**（默认开：`krun_snd_set_volume(…, mute)` 约 150 ms 渐隐，切回窗口恢复音量）与**暂停游戏**（默认关：客户机代理只冻结焦点游戏——`systemctl --user freeze app-steam-app<appid>-*.scope`，cgroup v2；Steam、下载与更新继续；在线游戏可能断线）。代理确认冻结期间（`game-frozen`/`game-thawed`）窗口变暗并显示“游戏已暂停 · 点按以继续”卡片与标题“— 已暂停”；点按窗口恢复游戏且不传给客户机；崩溃报告（`--no-crash-reports`，见下）；**启动时检查更新**（默认开，见“更新检查”）；帧统计日志（`--perf-stats`）；**在桌面模式中使用 Mac 的键盘布局**（默认开，见“桌面模式”） | 启动时全屏；**使用 Mac 的时区和时钟格式**（默认开，见上） |
+| 通用 | 开关机覆盖层；GPU 空闲“仍在工作 — 正在加载或编译着色器…”指示；“当 MacFrame 在后台时”：**静音**（默认开：`krun_snd_set_volume(…, mute)` 约 150 ms 渐隐，切回窗口恢复音量）与**暂停游戏**（默认关：客户机代理只冻结焦点游戏——`systemctl --user freeze app-steam-app<appid>-*.scope`，cgroup v2；Steam、下载与更新继续；在线游戏可能断线）。代理确认冻结期间（`game-frozen`/`game-thawed`）窗口变暗并显示“游戏已暂停 · 点按以继续”卡片与标题“— 已暂停”；点按窗口恢复游戏且不传给客户机；崩溃报告（`--no-crash-reports`，见下）；**启动时检查更新**（默认开，见“更新检查”）；帧统计日志（`--perf-stats`）；**在桌面模式中使用 Mac 的键盘布局**（默认开，见“桌面模式”） | 启动时全屏；**使用 Mac 的时区和时钟格式**（默认开，见上） |
 | 显示 | 客户机跟随窗口大小；窗口右上角 Apple Metal 性能 HUD（Ctrl+Cmd+P，显示菜单）；**MetalFX 超分辨率**（默认关）：窗口像素多于客户机时（Retina 屏 2 倍、缩放或全屏窗口），Apple MetalFX 空间放大把客户机画面放大到窗口像素尺寸，而非线性 / 最近邻缩放；跑在启动器中的客户机帧上，对所有游戏与 Steam UI 有效 | 物理尺寸来源（屏幕自动 / DPI / 毫米——`--dpi`、`--display-mm`），刷新率（`--refresh`），窗口大小（`--display`）：1280 × 800（Steam Deck）到 3840 × 2160 的标准分辨率（超出显示器的标注“超出当前屏幕尺寸”；窗口照旧缩小），“适应屏幕”（按显示器取最大，每次启动重算）或“自定…”（宽 × 高输入）；**Retina 分辨率**（可选，默认关）：客户机显示器获得屏幕像素密度（窗口点数 × 启动时屏幕 backing scale，每边不超过 4094 px 者降档），EDID 物理尺寸不变，SteamOS 把 UI 放大到同样尺寸、文字锐利——但游戏要画 4 倍像素，每帧拷贝大 4 倍；更推荐：Retina 分辨率关 + MetalFX 超分辨率（Retina 屏 2 倍放大） |
 | 鼠标 | 游戏中自动捕获；游戏列表（名取自 `appmanifest_<appid>.acf`，使用默认/自动/关闭、忘记此游戏） | — |
 | 控制器 | 哪个物理控制器（GameController）驱动虚拟手柄（首个已连接或自选），SteamOS 是否获得手柄及呈现为何种（`--no-gamepad`、`--pad`，见“控制器”），DualSense 是否按本身直通，其余控制器是否成为玩家 2–4，A/B 与 X/Y 互换，摇杆死区，实时输入测试 | — |
@@ -297,7 +297,7 @@ Dragon's Dogma 2 仍保留受 Venus 功能检查约束的默认值。所有权�
 
 ## 挂起
 
-**方式：** 设置 → 通用 → “关闭窗口时” → **挂起**——之后关闭窗口挂起虚拟机而非关机；或用 **FX Steam Launcher → 挂起**（Ctrl+Cmd+S，
+**方式：** 设置 → 通用 → “关闭窗口时” → **挂起**——之后关闭窗口挂起虚拟机而非关机；或用 **MacFrame → 挂起**（Ctrl+Cmd+S，
 客户机持有键盘时也可用）。`krun_pause`（libkrun 补丁 0016）停止全部 vCPU 与
 客户机音频，窗口隐藏，菜单栏出现 ⏸ 图标：“SteamOS 已挂起”、
 何时暂停、占用多少内存，**恢复**、**关闭 SteamOS**。挂起的虚拟机不占 CPU（~0%）；Mac 可睡眠。
@@ -315,7 +315,7 @@ CLOCK_REALTIME（`clock_adjtime(ADJ_SETOFFSET)`，只向前、且仅当时钟落
 （客户机恢复后正常关机）或**取消**（保持挂起）。注销、
 重启与关闭 Mac 不提示。
 
-**限制：** 状态只在 FX Steam Launcher 运行期间存于内存——不落盘（客户机内存与宿主 GPU 状态——virglrenderer、MoltenVK、Metal——不序列化）。退出应用、应用崩溃、注销或关闭 Mac 都是普通 SteamOS 关机；未保存的游戏进度丢失。挂起期间客户机内存持续被占用。客户机网络连接（在线游戏、下载）长暂停后可能断开重连。
+**限制：** 状态只在 MacFrame 运行期间存于内存——不落盘（客户机内存与宿主 GPU 状态——virglrenderer、MoltenVK、Metal——不序列化）。退出应用、应用崩溃、注销或关闭 Mac 都是普通 SteamOS 关机；未保存的游戏进度丢失。挂起期间客户机内存持续被占用。客户机网络连接（在线游戏、下载）长暂停后可能断开重连。
 
 ## SteamOS 睡眠
 
@@ -407,10 +407,10 @@ DualSense 驱动操作 `/dev/hidraw*`，Steam Input 获得触摸板、陀螺仪�
 `--control-fifo` 测试命令：`pad on`（无控制器的手柄，如 `--input-selftest` 所用）、
 `pad off`、`pad test`（A + 左摇杆）——均可带玩家编号（`pad on 2`；不带则为 1）——以及 `pad state`（客户机手柄、上次振动等级、客户机是否接管 HID 设备、已连接 DualSense 与直通输入报告数）。
 
-## FX Steam Launcher.app
+## MacFrame.app
 
 `host/launcher/build.sh`（与 `./build.sh host`）除 `work/out/steamac-vm` 外还构建
-`work/out/FX Steam Launcher.app`（`host/launcher/bundle.sh`）：`es.fxgam.steamac`，`Contents/Frameworks` 中的库
+`work/out/MacFrame.app`（`host/launcher/bundle.sh`）：`com.steamframeout.macframe`，`Contents/Frameworks` 中的库
 （libkrun、libvirglrenderer、libMoltenVK、libepoxy）经 `@rpath`，`Contents/Resources` 中——gvproxy、`Image` 内核、`initramfs.cpio.gz`、`steamac-layer.img`、
 desync 与 Valve 磁盘创建 CA（许可证在 `Resources/licenses`）；图标：
 `host/launcher/AppIcon.icon`（Icon Composer 文档）由 `actool` 编译为 `Assets.car`
@@ -419,13 +419,13 @@ desync 与 Valve 磁盘创建 CA（许可证在 `Resources/licenses`）；图标
 `/Applications`。
 
 从访达启动（无参数）用包内的内核、initramfs 与层，SteamOS 磁盘取自 设置 → 高级 → 磁盘映像。默认：
-`~/Library/Application Support/es.fxgam.steamac/steamos.img`；否则用仓库的
+`~/Library/Application Support/com.steamframeout.macframe/steamos.img`；否则用仓库的
 `work/out/steamos.img`（包旁边或构建处）。无磁盘时，首次启动窗口提供**新建磁盘…**（见下节）或**使用已有磁盘…**
 （映像就地使用从不复制；`scripts/build-image.sh` 也可构建）。此模式客户机控制台与启动器日志写入
-`~/Library/Logs/es.fxgam.steamac/steamac-vm.log`；SIGUSR1 帧转储亦然。`./run.sh`
+`~/Library/Logs/com.steamframeout.macframe/steamac-vm.log`；SIGUSR1 帧转储亦然。`./run.sh`
 与 `work/out/steamac-vm` 照常用（除非被标志覆盖，窗口设置对它们同样有效）。
 
-映像在外接盘上时，首次从访达启动 macOS 会问“FX Steam Launcher
+映像在外接盘上时，首次从访达启动 macOS 会问“MacFrame
 想访问可移动宗卷上的文件”——允许（回应前虚拟机等待磁盘打开）。ad-hoc 签名，重建包后 macOS 可能再问。
 
 一个磁盘映像一次只能被一台虚拟机使用：虚拟机进程退出前持有可写磁盘独占锁
@@ -479,7 +479,7 @@ rootfs 哈希不符时再顺序读取，以区分错误的稀疏区段元数据�
 2. 下载 `.raucb`（约 2 MB）；Security.framework 仅对照 Valve 固定 CA `CN=steamdeck-images`（`scripts/keys/steamdeck-images.pem`，SHA-256 指纹嵌入代码）校验其 CMS 签名，不用系统信任库。自研 squashfs 读取器（用锁定 zstd 发行版的 zstd，`fetch-zstd.sh`）解出 `manifest.raucm` 与 `rootfs.img.caibx`；检查
    `compatible=steamos-aarch64`、版本与槽大小。
 3. 官方 desync（`fetch-desync.sh`，锁定版本与 sha256）从 Valve 块存储（约 4.4 GB 数据）组装 10 GB `rootfs.img`；家目录卷上的磁盘用
-   `~/Library/Caches/es.fxgam.steamac` 中的 `desync/` 做块缓存，否则用磁盘旁 `<disk>.cache`
+   `~/Library/Caches/com.steamframeout.macframe` 中的 `desync/` 做块缓存，否则用磁盘旁 `<disk>.cache`
    （外接盘则内部不占缓存空间；成功后删除该目录）。故停止/创建（或 Ctrl+C 后重跑命令）可断点续传；之前某次在后续步骤失败而留下的完整 `<disk>.rootfs-tmp` 会先被删除（desync 不会复用它，保留只会让它占用两倍空间）。一个缓存一次只允许一次创建：第二次（另一窗口或 `--create-disk`）以“另一个 SteamOS 磁盘正在使用下载缓存 … 创建：请等待创建完成或取消该操作”停止（缓存目录中 `creation.lock` 的 `flock`），而非共享块缓存与临时文件。
 4. 稀疏磁盘文件：保护 MBR + GPT（主备，CRC32），名称、顺序、类型、大小与对齐与 `scripts/steps/40-disk.sh` 完全一致，PARTUUID 随机。一遍写入中，对 `rootfs.img` 哈希（sha256 须与签名 manifest 一致），16
    KiB 非零块写入 rootfs-A 与 rootfs-B；其余分区写零。全部检查通过后磁盘才以最终名称出现。已存在文件从不覆盖；exFAT
@@ -529,7 +529,7 @@ Venus 背后的宿主 Vulkan 驱动在**设置 → 高级 → Vulkan 驱动**选
 Metal 初始化前，启动器检查运行时编译器的模块缓存是否可写
 （`DARWIN_USER_CACHE_DIR/<bundle id>/com.apple.metalfe`，包括现有哈希目录和 `.pcm` 文件）。
 如果权限、ACL 或不可变文件标志阻止写入，启动器会记录失败路径，
-并把 Metal 缓存重定向到 `~/Library/Caches/es.fxgam.steamac/metal-compiler`。
+并把 Metal 缓存重定向到 `~/Library/Caches/com.steamframeout.macframe/metal-compiler`。
 它不会删除旧缓存或修改其权限。此功能使用 Metal 可选的缓存路径 SPI；
 若该接口不可用或新缓存同样不可写，会记入日志，着色器编译错误仍可上报。
 `work/out/steamac-vm --selftest-metal-cache` 在私有不可变缓存中复现
@@ -638,7 +638,7 @@ ARM64 Steam Deck 客户端（`steamdeck_stable`），登录显示屏幕二维码
 
 ## 分发（DMG）
 
-`host/launcher/dist.sh` 把构建好的 `work/out/FX Steam Launcher.app` 做成可下载的
+`host/launcher/dist.sh` 把构建好的 `work/out/MacFrame.app` 做成可下载的
 `work/out/dist/FX-Steam-Launcher-<version>.dmg`（应用 + `/Applications` 链接）。去掉 `SteamacBuildOut` 键（本构建树路径）的包拷贝用 Developer ID
 重签，hardened runtime，安全时间戳：先签全部内嵌 Mach-O（`Frameworks/*.dylib`、`Resources` 中辅助程序），
 再用 `steamac-vm.entitlements` 签包（hypervisor、
@@ -686,7 +686,7 @@ SDK 根本不启动、不联网（已落盘报告保留在原处、不发送）�
   因此无需启用性能统计，“报告问题”也可包含游戏卡顿的诊断信息。
   宿主调度停顿（启动器自身数秒未运行）之后，检测器先观察一个新的心跳窗口，不把停顿算作客户机挂起。
 - SIGTERM/SIGINT/SIGHUP 退出的虚拟机（注销、`kill`、处理器安装前的 ^C）不是崩溃：只有日志行，无事件、无报告问题窗口。SIGPIPE 也不是（两进程都忽略：输出管道关闭——终端，或监管器被杀后的监管器 stderr 通道——只失败该次写；虚拟机进程转而记到
-  `~/Library/Logs/es.fxgam.steamac/steamac-vm.log` 或丢弃这些行，让客户机继续关完；STEAMAC-10）。SIGKILL 生成
+  `~/Library/Logs/com.steamframeout.macframe/steamac-vm.log` 或丢弃这些行，让客户机继续关完；STEAMAC-10）。SIGKILL 生成
   warning 级 `vm-killed` 事件，“VM process killed (SIGKILL — memory pressure or force quit)”：
   内核是否因内存杀它（jetsam，监管器 kqueue 的 `NOTE_EXIT_DETAIL`）、
   虚拟机内存与退出/峰值时虚拟机进程 footprint、宿主 `vm_stat` 数（free/compressed/wired、
@@ -701,7 +701,7 @@ SDK 根本不启动、不联网（已落盘报告保留在原处、不发送）�
   以及进程、Metal、Vulkan 分配与共享内存快照；这些计数相互重叠，不能相加。因磁盘被占用而被拒绝的第二个虚拟机以状态 4 退出：只有说明，不上报。
 - 每个事件附带启动器 stderr 最近约 200 行做面包屑（`[steamac-vm]`、
   `[mvk-*]`、libkrun/virglrenderer 警告、启动阶段）与标签：版本
-  （`es.fxgam.steamac@<CFBundleShortVersionString>+<git sha>`）、环境与 `build_kind` 标签：
+  （`com.steamframeout.macframe@<CFBundleShortVersionString>+<git sha>`）、环境与 `build_kind` 标签：
   `release` ——仅带公证的 `dist.sh` 构建（Info.plist `SteamacDistTeamID`，且运行代码签名确为该团队 Developer ID，用 `SecCodeCheckValidity` 检查），
   `source-build` ——其他 `.app`（`bundle.sh`、ad-hoc/重签拷贝、`dist.sh --no-notarize`），
   `development` ——包外 `work/out/steamac-vm`；macOS、Mac 机型、GPU、vCPU/内存、显示模式、libkrun / virglrenderer / MoltenVK 构建 UUID、`MVK_PATCH_REVISION`、内核版本、
@@ -728,7 +728,7 @@ Resources 中的辅助程序；每个都须通过 `sentry-cli debug-files check`
 
 应用启动时（每次启动一次而非每次虚拟机重启，且至多 6 小时一次——跨启动累计），启动器后台请求最新 release，不阻塞启动，
 地址 `https://api.github.com/repos/fxgl/steamac/releases/latest`（匿名，10 秒超时；排除草稿与预发布），比较其 `vX.Y[.Z]` 标签与自身版本
-（`CFBundleShortVersionString`，数字比较：1.3.10 > 1.3.9）。有新版本时，在虚拟机窗口旁边（屏幕有空间则不压住；不抢焦点——键盘与捕获鼠标留给虚拟机）出现窗口：“FX Steam Launcher X.Y 已发布 — 当前版本为 …”，
+（`CFBundleShortVersionString`，数字比较：1.3.10 > 1.3.9）。有新版本时，在虚拟机窗口旁边（屏幕有空间则不压住；不抢焦点——键盘与捕获鼠标留给虚拟机）出现窗口：“MacFrame X.Y 已发布 — 当前版本为 …”，
 附 release 说明与按钮 **下载**（浏览器打开 release 的 `.dmg`，否则打开 release 页）、**跳过此版本**（启动时不再提示该版本）、
 **稍后提醒**（下次检查再提示）。应用菜单 **检查更新…**
 项（可用版本未被跳过时显示“有可用更新：X.Y…”带 新 角标，
@@ -767,7 +767,7 @@ download|skip|later|ok|releases`、`update dump PNG`（窗口与 `-with-vm.png`�
 服务仍接受 v1（包括之前保存的会话），将其 `gfx`/`env` 存为 NULL。
 无效的 v2 赋值返回 HTTP 400；有效赋值按变量名排序，同名时最后一个生效。
 
-每份报告保存在本 Mac（`~/Library/Application Support/es.fxgam.steamac/game-stats.json`，
+每份报告保存在本 Mac（`~/Library/Application Support/com.steamframeout.macframe/game-stats.json`，
 每款游戏 20 次会话），并列于**设置 → 游戏**。启用**共享游戏统计**前，任何数据都不会离开 Mac：
 首款出现窗口的游戏运行后，启动器仅询问一次，询问窗口位于虚拟机窗口旁，不抢走键盘或捕获的鼠标
 （**共享** / **不共享**）；设置 → 游戏中的开关可随时更改此选择。开启时，已结束的会话与评价
@@ -822,7 +822,7 @@ Worker URL 填入 `host/launcher/Info.plist`（`SteamacGameStatsURL`）与 `docs
 
 遇到问题直接从启动器向开发者报告：
 **帮助 → 报告问题…**（或应用菜单）、设置 → 通用中**报告问题…**按钮、“SteamOS 无响应…”卡片上**报告…**链接，以及虚拟机非预期退出（崩溃、错误）后出现的
-“FX Steam Launcher 意外停止”窗口中的**报告…**按钮。对话框含：
+“MacFrame 意外停止”窗口中的**报告…**按钮。对话框含：
 电子邮件（必填，在本 Mac 记住以便开发者回复）、描述（做了什么、期望什么、实际发生什么）与附件复选框：
 
 - **包含启动器日志**（默认勾）——本次会话启动器、libkrun、virglrenderer 与 MoltenVK
@@ -864,7 +864,7 @@ Worker URL 填入 `host/launcher/Info.plist`（`SteamacGameStatsURL`）与 `docs
 并在访达打开其目录——所见即所发。
 
 报告发往 Sentry（`sentry.fxgam.es`，同一项目）做 User Feedback：邮箱、描述、本会话最新错误事件链接（如有）与文件附件，一个 envelope 直发 envelope 端口以便看到服务器应答。关闭崩溃报告也能用（显式用户动作：此时 SDK 与崩溃处理器不启动）。附件上限 20 MB（先裁日志旧部，再丢截图与 SteamOS 归档）；HTTP 413 应答则限额减半重发。发送后显示短报告 ID（事件 ID 前 8 字符）。发送失败目录保留在
-`~/Library/Logs/es.fxgam.steamac/reports/<date>-<ID>/`（`report.json` 含邮箱与描述加文件）；对话框提供**重试**与**在访达中显示**，目录也可邮件发送。
+`~/Library/Logs/com.steamframeout.macframe/reports/<date>-<ID>/`（`report.json` 含邮箱与描述加文件）；对话框提供**重试**与**在访达中显示**，目录也可邮件发送。
 
 原理：监管器始终管道两进程 stderr 并写入
 `/tmp/steamac-<pid>/launcher.log`（带时间戳，4 MB 轮转）；虚拟机进程把 hvc0

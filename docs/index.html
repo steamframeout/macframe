@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FX Steam Launcher — SteamOS on your Mac</title>
+<title>MacFrame — SteamOS on your Mac</title>
 <meta name="description" content="Valve's official ARM64 SteamOS (the Steam Frame build) in a lightweight VM on Apple Silicon: GPU-accelerated Windows games, any controller, native CoreAudio sound.">
 <meta property="og:type" content="website">
-<meta property="og:title" content="FX Steam Launcher — SteamOS on your Mac">
+<meta property="og:title" content="MacFrame — SteamOS on your Mac">
 <meta property="og:description" content="Valve's official ARM64 SteamOS in a lightweight VM on Apple Silicon. DirectX → Vulkan → Metal, any controller, native sound.">
 <meta property="og:image" content="https://fxgl.github.io/steamac/media/og.jpg">
 <meta property="og:url" content="https://fxgl.github.io/steamac/">
@@ -30,9 +30,9 @@
 <body>
 
 <header class="nav">
-  <a class="brand" href="#top" aria-label="FX Steam Launcher">
+  <a class="brand" href="#top" aria-label="MacFrame">
     <img class="brand-mark" src="media/icon.png" alt="" width="28" height="28">
-    <span class="brand-name">FX Steam Launcher</span>
+    <span class="brand-name">MacFrame</span>
   </a>
   <nav class="nav-links">
     <a href="#scene"><span lang="en">Inside</span><span lang="ru">Внутри</span><span lang="zh">内部</span></a>
@@ -91,8 +91,8 @@
         <div class="layer layer-screen" style="--accent:#66c0f4">
           <div class="slab">
             <div class="window">
-              <div class="titlebar"><i></i><i></i><i></i><span>FX Steam Launcher</span></div>
-              <video class="screen-video" autoplay muted loop playsinline preload="auto" poster="media/poster.jpg" aria-label="SteamOS booting in FX Steam Launcher, Steam opening, then the first launch of Galaxy Control">
+              <div class="titlebar"><i></i><i></i><i></i><span>MacFrame</span></div>
+              <video class="screen-video" autoplay muted loop playsinline preload="auto" poster="media/poster.jpg" aria-label="SteamOS booting in MacFrame, Steam opening, then the first launch of Galaxy Control">
                 <source src="media/hero.mp4" type="video/mp4">
               </video>
             </div>
@@ -314,7 +314,7 @@
       <span lang="zh">上图是 M4 Max 上启动器窗口的录屏：SteamOS 启动、Steam 打开、Galaxy Control 启动，全程实时。仅做两处剪辑：裁掉窗口边框，剪掉黑屏等待与帧卡顿。</span>
     </p>
     <div class="shots">
-      <figure><img src="media/shot-boot.jpg" alt="FX Steam Launcher boot overlay: Starting Steam" loading="lazy" width="960" height="600"><figcaption><span lang="en">Boot: the launcher overlay follows SteamOS startup</span><span lang="ru">Загрузка: оверлей лаунчера следит за стартом SteamOS</span><span lang="zh">启动：启动器叠加层跟随 SteamOS 启动</span></figcaption></figure>
+      <figure><img src="media/shot-boot.jpg" alt="MacFrame boot overlay: Starting Steam" loading="lazy" width="960" height="600"><figcaption><span lang="en">Boot: the launcher overlay follows SteamOS startup</span><span lang="ru">Загрузка: оверлей лаунчера следит за стартом SteamOS</span><span lang="zh">启动：启动器叠加层跟随 SteamOS 启动</span></figcaption></figure>
       <figure><img src="media/shot-library.jpg" alt="Steam gamepad UI home screen in the VM" loading="lazy" width="960" height="540"><figcaption><span lang="en">Steam gamepad UI, native ARM64</span><span lang="ru">Интерфейс Steam, нативный ARM64</span><span lang="zh">Steam 手柄界面，原生 ARM64</span></figcaption></figure>
       <figure><img src="media/shot-game.jpg" alt="Steam game page of Diplomacy is Not an Option" loading="lazy" width="960" height="540"><figcaption><span lang="en">Game page, Steam Cloud in sync</span><span lang="ru">Страница игры, Steam Cloud синхронизирован</span><span lang="zh">游戏页面，Steam 云同步正常</span></figcaption></figure>
       <figure><img src="media/shot-play.jpg" alt="Diplomacy is Not an Option gameplay in the VM" loading="lazy" width="960" height="600"><figcaption><span lang="en">In game: Windows x86-64 via Proton 11 + FEX</span><span lang="ru">В игре: Windows x86-64 через Proton 11 + FEX</span><span lang="zh">游戏中：经 Proton 11 + FEX 的 Windows x86-64</span></figcaption></figure>
@@ -433,7 +433,7 @@
         <blockquote>
           <p><span lang="en">With autopause feature I can drive my American Truck Simulator during Zoom meetings and not be afraid to look up something in Excel spreadsheet when needed!</span><span lang="ru">С автопаузой я могу водить грузовик в American Truck Simulator прямо во время созвонов в Zoom и не бояться заглянуть в таблицу Excel, когда нужно!</span><span lang="zh">有了自动暂停，我开 Zoom 会时也能跑《美国卡车模拟》，需要查 Excel 表格时完全不慌！</span></p>
         </blockquote>
-        <figcaption><span lang="en">FX Steam Launcher user</span><span lang="ru">Пользователь FX Steam Launcher</span><span lang="zh">FX Steam Launcher 用户</span> · <a href="#settings">Settings → General → Pause the game</a></figcaption>
+        <figcaption><span lang="en">MacFrame user</span><span lang="ru">Пользователь MacFrame</span><span lang="zh">MacFrame 用户</span> · <a href="#settings">Settings → General → Pause the game</a></figcaption>
       </figure>
     </div>
   </div>
@@ -513,17 +513,17 @@
     <div class="get-grid">
       <div class="get-card get-main">
         <div class="get-head">
-          <img class="app-icon" src="media/icon.png" alt="FX Steam Launcher icon" width="96" height="96">
+          <img class="app-icon" src="media/icon.png" alt="MacFrame icon" width="96" height="96">
           <div>
             <a class="btn btn-primary btn-big" data-dl href="https://github.com/fxgl/steamac/releases/latest">
-              <span lang="en">Download FX Steam Launcher</span><span lang="ru">Скачать FX Steam Launcher</span><span lang="zh">下载 FX Steam Launcher</span>
+              <span lang="en">Download MacFrame</span><span lang="ru">Скачать MacFrame</span><span lang="zh">下载 MacFrame</span>
               <small data-ver></small>
             </a>
             <a class="all-releases" href="https://github.com/fxgl/steamac/releases"><span lang="en">All releases</span><span lang="ru">Все релизы</span><span lang="zh">所有版本</span> →</a>
           </div>
         </div>
         <ol class="steps">
-          <li><span lang="en">Download the DMG, open it and drag FX Steam Launcher to Applications. It is signed and notarized by Apple.</span><span lang="ru">Скачайте DMG, откройте и перетащите FX Steam Launcher в «Программы». Приложение подписано и нотаризовано Apple.</span><span lang="zh">下载 DMG，打开后把 FX Steam Launcher 拖到“应用程序”。应用经 Apple 签名与公证。</span></li>
+          <li><span lang="en">Download the DMG, open it and drag MacFrame to Applications. It is signed and notarized by Apple.</span><span lang="ru">Скачайте DMG, откройте и перетащите MacFrame в «Программы». Приложение подписано и нотаризовано Apple.</span><span lang="zh">下载 DMG，打开后把 MacFrame 拖到“应用程序”。应用经 Apple 签名与公证。</span></li>
           <li><span lang="en">Launch it and choose <b>Create New Disk…</b>: pick the SteamOS branch, the size of the games partition and the Steam client, and accept Valve's SteamOS license and the Steam Subscriber Agreement. The launcher downloads Valve's signed image (~4.5 GB), checks the signature and checksum and writes the disk. No Docker needed.</span><span lang="ru">Запустите и выберите <b>Новый диск…</b>: укажите ветку SteamOS, размер раздела под игры и клиент Steam, примите лицензию SteamOS и Соглашение подписчика Steam от Valve. Лаунчер скачает подписанный образ Valve (~4,5 ГБ), проверит подпись и контрольную сумму и запишет диск. Docker не нужен.</span><span lang="zh">启动并选择 <b>新建磁盘…</b>：选择 SteamOS 分支、游戏分区大小与 Steam 客户端，接受 Valve 的 SteamOS 许可和 Steam 订户协议。启动器下载 Valve 签名映像（约 4.5 GB），校验签名与校验和并写入磁盘。无需 Docker。</span></li>
           <li><span lang="en">Sign in to Steam and install games — Steam brings Proton 11 (ARM64) and FEX itself.</span><span lang="ru">Войдите в Steam и ставьте игры — Proton 11 (ARM64) и FEX Steam поставит сам.</span><span lang="zh">登录 Steam 并安装游戏——Proton 11（ARM64）与 FEX 由 Steam 自行带来。</span></li>
         </ol>

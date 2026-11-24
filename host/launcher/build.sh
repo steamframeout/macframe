@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Build the steamac-vm launcher (release), sign it with the hypervisor entitlement and
 # install it as work/out/steamac-vm. Also fetches the pinned zstd decoder sources (compiled in),
-# gvproxy and desync into work/out/host/bin and assembles work/out/FX Steam Launcher.app
+# gvproxy and desync into work/out/host/bin and assembles work/out/MacFrame.app
 # (bundle.sh; skipped with STEAMAC_NO_BUNDLE=1 or when the kernel/initramfs/layer images are
 # not built yet). Debug symbols for crash reports go to work/out/dSYMs (see dist.sh).
 #
@@ -28,7 +28,7 @@ ls "$KRUN_PREFIX"/lib/libkrun*.dylib >/dev/null 2>&1 || { echo "missing $KRUN_PR
 
 # Info.plist embedded into the binary (-sectcreate) and copied into the .app by bundle.sh, plus the
 # build identity crash reports use (CrashReporting): SteamacGitCommit (release name
-# es.fxgam.steamac@<CFBundleShortVersionString>+<commit>), SteamacMVKPatchRevision (MoltenVK
+# com.steamframeout.macframe@<CFBundleShortVersionString>+<commit>), SteamacMVKPatchRevision (MoltenVK
 # MVK_PATCH_REVISION, from $KRUN_PREFIX/MOLTENVK.txt) and SteamacKosmicKrispRevision (patch revision
 # from $KRUN_PREFIX/KOSMICKRISP.txt, when KosmicKrisp is built).
 PLIST="$HERE/.build/Info.plist"

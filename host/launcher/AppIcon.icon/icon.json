@@ -6,8 +6,8 @@
     {
       "layers": [
         {
-          "image-name": "fx.png",
-          "name": "fx",
+          "image-name": "macframe.png",
+          "name": "macframe",
           "glass": false
         }
       ],

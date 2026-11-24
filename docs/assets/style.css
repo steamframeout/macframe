@@ -1,4 +1,4 @@
-/* FX Steam Launcher landing page. No dependencies; the 3D stack is plain CSS transforms
+/* MacFrame landing page. No dependencies; the 3D stack is plain CSS transforms
    driven by assets/app.js (one rig, six layers, each layer a slab with edges and raised chips). */
 
 :root {

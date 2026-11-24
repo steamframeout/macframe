@@ -16,7 +16,7 @@ documentation, start at the repository's top-level `README.md` and `docs/fork.md
 - [Desktop Mode](desktop-mode.md) — KDE Plasma nested in gamescope
 - [Clipboard](clipboard.md) — sharing the clipboard with SteamOS
 - [Controller](controller.md) — the virtual gamepad, rumble, DualSense passthrough
-- [FX Steam Launcher.app](app-bundle.md) — the app bundle, disk locking, fsck
+- [MacFrame.app](app-bundle.md) — the app bundle, disk locking, fsck
 - [Creating a disk](creating-a-disk.md) — creating the SteamOS disk without Docker
 - [Languages](languages.md) — the launcher's and SteamOS's languages
 - [Steam client](steam-client.md) — Deck / Deck beta / Frame client selection

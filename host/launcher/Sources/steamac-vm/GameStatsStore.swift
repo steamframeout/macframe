@@ -4,7 +4,7 @@ import Combine
 import SwiftUI
 
 /// Every game session recorded on this Mac (GameStats.swift), the player's ratings and per-game
-/// sharing switches, in `<Application Support>/es.fxgam.steamac/game-stats.json`
+/// sharing switches, in `<Application Support>/com.steamframeout.macframe/game-stats.json`
 /// (STEAMAC_GAME_STATS_FILE overrides), and their upload to the statistics service while Settings
 /// `shareGameStats` is on. Main thread only.
 ///

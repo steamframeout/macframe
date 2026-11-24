@@ -9,7 +9,7 @@ import Sentry
 /// VM exit): the user's email and description plus a bundle of logs go to the developers' Sentry
 /// as User Feedback (ReportWindow.swift has the dialog). This file: the per-session logs the
 /// bundle draws on, the guest log request, collection into a report folder
-/// (~/Library/Logs/es.fxgam.steamac/reports/<date>-<id>/, which is exactly what is sent and stays
+/// (~/Library/Logs/com.steamframeout.macframe/reports/<date>-<id>/, which is exactly what is sent and stays
 /// there when sending fails) and the upload.
 
 // MARK: - session logs
@@ -196,7 +196,7 @@ struct ReportContext {
     var exitSummary: String?
 }
 
-/// One report folder: ~/Library/Logs/es.fxgam.steamac/reports/<yyyy-MM-dd-HHmmss>-<id>/.
+/// One report folder: ~/Library/Logs/com.steamframeout.macframe/reports/<yyyy-MM-dd-HHmmss>-<id>/.
 final class ReportBundle: @unchecked Sendable {
     static var reportsDir: String {
         NSHomeDirectory() + "/Library/Logs/" + LauncherSettings.defaultDomain + "/reports"
@@ -390,7 +390,7 @@ final class ReportBundle: @unchecked Sendable {
         add("crash reporting", CrashReporting.statusSummary)
         add("last error event", CrashReporting.lastEventId(runDir: context.runDir))
         add("exit", context.exitSummary)
-        var text = "# FX Steam Launcher problem report\n" + lines.joined(separator: "\n") + "\n"
+        var text = "# MacFrame problem report\n" + lines.joined(separator: "\n") + "\n"
         if !notes.isEmpty { text += "\n# Collection notes\n" + notes.map { "- " + $0 }.joined(separator: "\n") + "\n" }
         let other = tags.filter { !["steamos_build", "layer", "boot", "run"].contains($0.key) }
         if !other.isEmpty {

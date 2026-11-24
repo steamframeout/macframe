@@ -216,7 +216,7 @@ done <<< "$source_checksums"
 [[ $count -ge 2 ]] || { echo "incomplete source in $dsc_name" >&2; exit 1; }
 
 cat > "$ST/README.txt" <<EOF
-FX Steam Launcher $version — corresponding GPL/LGPL source ($REF)
+MacFrame $version — corresponding GPL/LGPL source ($REF)
 
 The DMG contains the following binaries. The tarballs in sources/ are the
 complete upstream sources; repo/ contains this release's exact configuration,

@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleIdentifier</key>
-    <string>es.fxgam.steamac</string>
+    <string>com.steamframeout.macframe</string>
     <key>CFBundleName</key>
-    <string>FX Steam Launcher</string>
+    <string>MacFrame</string>
     <key>CFBundleDisplayName</key>
-    <string>FX Steam Launcher</string>
+    <string>MacFrame</string>
     <key>CFBundleExecutable</key>
-    <string>steamac-vm</string>
+    <string>MacFrame</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleDevelopmentRegion</key>
@@ -21,7 +21,7 @@
         <string>zh-Hans</string>
     </array>
     <key>CFBundleShortVersionString</key>
-    <string>1.9.8</string>
+    <string>0.2.0</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIconName</key>
@@ -43,8 +43,6 @@
     <key>NSMicrophoneUsageDescription</key>
     <string>The SteamOS virtual machine records from the microphone while a game or Steam voice chat in it uses one.</string>
     <key>NSLocalNetworkUsageDescription</key>
-    <string>Discover Steam Link and Remote Play devices on your local network and connect them to Steam in the SteamOS virtual machine when LAN Remote Play is enabled.</string>
-    <key>SteamacGameStatsURL</key>
-    <string>https://steamac-game-stats.steamac-game-stats.workers.dev</string>
+    <string>Discover Steam Link and Remote Play devices on your local network and connect them, including a Steam Frame headset, to Steam in the SteamOS virtual machine.</string>
 </dict>
 </plist>
