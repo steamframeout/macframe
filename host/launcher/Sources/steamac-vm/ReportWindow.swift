@@ -33,7 +33,7 @@ final class ReportModel: ObservableObject {
     var emailValid: Bool {
         email.trimmingCharacters(in: .whitespaces).range(of: "^[^@\\s]+@[^@\\s]+\\.[A-Za-z]{2,}$", options: .regularExpression) != nil
     }
-    var textValid: Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 10 }
+    var textValid: Bool { text.trimmingCharacters(in: .whitespacesAndNewlines).count >= (CrashReporting.available ? 10 : 1) }
     var canSend: Bool { (emailValid || !CrashReporting.available) && textValid && phase == .editing }
     var hasWindow: Bool { context.captureScreenshot != nil }
     var savedPath: String { bundle.map { ($0.dir as NSString).abbreviatingWithTildeInPath } ?? "" }
@@ -171,17 +171,23 @@ struct ReportView: View {
 
     private var working: Bool { model.phase == .working }
 
+    private var emailField: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Email").font(.callout.weight(.medium))
+            TextField("you@example.com", text: $model.email).textFieldStyle(.roundedBorder)
+            Text(verbatim: !model.email.isEmpty && !model.emailValid ? String(localized: "Enter a valid email address.")
+                 : String(localized: "So the developers can reply. Remembered on this Mac."))
+                .font(.caption).foregroundStyle(!model.email.isEmpty && !model.emailValid ? Color.red : Color.secondary)
+        }
+    }
+
     private var form: some View {
         VStack(alignment: .leading, spacing: 14) {
             header("exclamationmark.bubble.fill", .accentColor, "Report a Problem",
-                   String(localized: "Describe what went wrong. Your description, your email and the items checked below go to the MacFrame developers (sentry.fxgam.es)."))
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Email").font(.callout.weight(.medium))
-                TextField("you@example.com", text: $model.email).textFieldStyle(.roundedBorder)
-                Text(verbatim: !model.email.isEmpty && !model.emailValid ? String(localized: "Enter a valid email address.")
-                     : String(localized: "So the developers can reply. Remembered on this Mac."))
-                    .font(.caption).foregroundStyle(!model.email.isEmpty && !model.emailValid ? Color.red : Color.secondary)
-            }
+                   CrashReporting.available
+                   ? String(localized: "Describe what went wrong. Your description, your email and the items checked below go to the MacFrame developers.")
+                   : String(localized: "Describe what went wrong. Your description and the items checked below are saved as a zip on your Desktop, to attach to a GitHub issue or send to whoever helps you. Nothing is sent by itself."))
+            if CrashReporting.available { emailField }
             VStack(alignment: .leading, spacing: 4) {
                 Text("What happened?").font(.callout.weight(.medium))
                 ZStack(alignment: .topLeading) {
