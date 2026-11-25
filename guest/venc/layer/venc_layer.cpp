@@ -1038,7 +1038,7 @@ VKAPI_ATTR VkResult VKAPI_CALL GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalD
     if (auto *h = (VkVideoEncodeH264CapabilitiesKHR *)find_struct_out(caps->pNext, VK_STRUCTURE_TYPE_VIDEO_ENCODE_H264_CAPABILITIES_KHR)) {
         h->flags = 0;
         h->maxLevelIdc = h264_level(l.max_level_idc);
-        h->maxSliceCount = 1;
+        h->maxSliceCount = 64;      // accepted, encoded as one slice (see the H.265 note below)
         h->maxPPictureL0ReferenceCount = 1;
         h->maxBPictureL0ReferenceCount = 0;
         h->maxL1ReferenceCount = 0;
@@ -1053,7 +1053,10 @@ VKAPI_ATTR VkResult VKAPI_CALL GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalD
     if (auto *h = (VkVideoEncodeH265CapabilitiesKHR *)find_struct_out(caps->pNext, VK_STRUCTURE_TYPE_VIDEO_ENCODE_H265_CAPABILITIES_KHR)) {
         h->flags = 0;
         h->maxLevelIdc = h265_level(l.max_level_idc);
-        h->maxSliceSegmentCount = 1;
+        // SteamVR's Steam Frame streaming (vrlink) asks for one slice segment per atlas view (4); VideoToolbox makes
+        // one slice per picture. Any count is accepted and the picture comes out as a single slice, which every
+        // decoder takes (reported as overridden, VK_VIDEO_ENCODE_FEEDBACK_BITSTREAM_HAS_OVERRIDES_BIT_KHR).
+        h->maxSliceSegmentCount = 64;
         h->maxTiles = {1, 1};
         h->ctbSizes = VK_VIDEO_ENCODE_H265_CTB_SIZE_16_BIT_KHR | VK_VIDEO_ENCODE_H265_CTB_SIZE_32_BIT_KHR |
                       VK_VIDEO_ENCODE_H265_CTB_SIZE_64_BIT_KHR;
