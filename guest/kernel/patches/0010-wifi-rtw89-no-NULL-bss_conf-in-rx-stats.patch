@@ -1,0 +1,19 @@
+From: steamac <steamac@localhost>
+Subject: [PATCH] wifi: rtw89: no NULL bss_conf in rtw89_vif_rx_stats_iter
+
+On the Steam Frame Wireless Adapter's 6 GHz link the iterator can meet a vif link without a bss_conf (an oops at
+rtw89_vif_rx_stats_iter+0x192, reported with the adapter). Skip it like a link without a BSSID.
+
+From https://github.com/cbuchner1/bmg-shim (patches/rtw89-6ghz-rx-stats-fix-7.3.4.patch), rebased onto 7.2.
+---
+--- a/drivers/net/wireless/realtek/rtw89/core.c
++++ b/drivers/net/wireless/realtek/rtw89/core.c
+@@ -3064,7 +3064,7 @@
+ 		goto out;
+ 
+ 	bss_conf = rtw89_vif_rcu_dereference_link(rtwvif_link, false);
+-	if (!bss_conf->bssid)
++	if (!bss_conf || !bss_conf->bssid)
+ 		goto out;
+ 
+ 	if (ieee80211_is_trigger(hdr->frame_control)) {

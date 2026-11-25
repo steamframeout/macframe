@@ -22,6 +22,8 @@
 
 #include <dlfcn.h>
 #include <unistd.h>
+#include <sys/stat.h>
+#include <time.h>
 #include <errno.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -69,6 +71,31 @@ void logf(int lvl, const char *fmt, ...)
     vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
     fprintf(stderr, "[venc] %s\n", buf);
+    // and /tmp/steamac-venc/<process>.<pid>.log, info and errors only, for problem reports (SteamVR's processes
+    // run in containers whose stderr nobody sees); /tmp is shared with the Steam Runtime containers
+    if (lvl > 1)
+        return;
+    static FILE *f = [] {
+        mkdir("/tmp/steamac-venc", 01777);
+        chmod("/tmp/steamac-venc", 01777);
+        char comm[32] = "unknown";
+        if (FILE *c = fopen("/proc/self/comm", "r")) {
+            if (fgets(comm, sizeof(comm), c))
+                comm[strcspn(comm, "\n")] = 0;
+            fclose(c);
+        }
+        char path[128];
+        snprintf(path, sizeof(path), "/tmp/steamac-venc/%s.%d.log", comm, (int)getpid());
+        FILE *o = fopen(path, "a");
+        if (o)
+            setvbuf(o, nullptr, _IOLBF, 0);
+        return o;
+    }();
+    if (f) {
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        fprintf(f, "%lld.%03ld %s\n", (long long)ts.tv_sec, ts.tv_nsec / 1000000, buf);
+    }
 }
 #define LOGE(...) logf(0, __VA_ARGS__)
 #define LOGI(...) logf(1, __VA_ARGS__)
@@ -108,8 +135,8 @@ bool process_wanted()
     ssize_t n = readlink("/proc/self/exe", exe, sizeof(exe) - 1);
     if (n > 0 && (strstr(exe, "/SteamVR/") || strstr(exe, "/steamvr/")))
         wanted = 1;
-    if (getenv("VENC_LOG"))
-        fprintf(stderr, "venc: process %s (%s): %s\n", comm, n > 0 ? exe : "?", wanted ? "encoding" : "pass-through");
+    if (wanted || getenv("VENC_LOG"))
+        LOGI("process %s (%s): %s", comm, n > 0 ? exe : "?", wanted ? "encoding" : "pass-through");
     return wanted;
 }
 
@@ -136,7 +163,7 @@ void load_backend()
             std::string path = n.find('/') != std::string::npos ? n : dir + "libvenc_backend_" + n + ".so";
             void *h = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
             if (!h) {
-                LOGD("backend %s: %s", path.c_str(), dlerror());
+                LOGI("backend %s: %s", path.c_str(), dlerror());
                 continue;
             }
             auto get = (venc_backend_get_fn)dlsym(h, "venc_backend_get");
@@ -147,7 +174,9 @@ void load_backend()
                 continue;
             }
             venc_limits l;
-            if (ops->query(VENC_H264, &l) != 0 && ops->query(VENC_H265, &l) != 0) {
+            int q264 = ops->query(VENC_H264, &l), q265 = ops->query(VENC_H265, &l);
+            LOGI("backend %s: H.264 %d, H.265 %d (0 = available, else -errno)", ops->name, q264, q265);
+            if (q264 != 0 && q265 != 0) {
                 LOGI("backend %s: no codec available", ops->name);
                 continue;  // keep it loaded: a backend may hold process-wide state
             }
@@ -373,6 +402,10 @@ Phys &phys_of(VkPhysicalDevice pd)
             p.h265 = g_backend->query(VENC_H265, &p.l265) == 0;
             p.active = p.h264 || p.h265;
         }
+        if (process_wanted())
+            LOGI("physical device: %s (H.264 %d, H.265 %d, %u queue families, backend %s)",
+                 p.active ? "video encode offered" : "no video encode", p.h264, p.h265, p.nfam,
+                 g_backend ? g_backend->name : "none");
         if (driver_video)
             LOGI("driver has its own video queues: layer inactive");
     }

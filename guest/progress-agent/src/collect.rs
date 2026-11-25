@@ -290,6 +290,19 @@ fn gather(dir: &Path, steam: &Path, home: &Path) -> Result<(), String> {
         let note = copy_tail(&logs.join(n), &steam_dir.join(n), VR_LOG_TAIL, &s);
         notes.push(format!("steam/{n}: {note}"));
     }
+    // The Vulkan Video encode layer (guest/venc): one log per SteamVR process, newest 12
+    let venc_dir = dir.join("venc");
+    let _ = std::fs::create_dir_all(&venc_dir);
+    let mut venc_logs = newest(Path::new("/tmp/steamac-venc"), |n| n.ends_with(".log"));
+    venc_logs.truncate(12);
+    if venc_logs.is_empty() {
+        notes.push("venc: no layer logs in /tmp/steamac-venc (the layer never ran in a SteamVR process)".into());
+    }
+    for p in &venc_logs {
+        let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        let note = copy_tail(p, &venc_dir.join(&name), VR_LOG_TAIL, &s);
+        notes.push(format!("venc/{name}: {note}"));
+    }
 
     // Proton: PROTON_LOG=1 writes ~/steam-<appid>.log; compatdata holds the
     // Proton version / config of each prefix.
