@@ -1,0 +1,38 @@
+#!/bin/bash
+# steamac: the Vulkan Video encode layer (/usr/lib/venc, guest/venc) for the desktop user, in their home directory
+# (steamac-venc-home.service, at every boot).
+#
+# SteamVR runs in the Steam Linux Runtime (pressure-vessel), which only sees the home directory and the graphics
+# driver it imports: a system-wide layer under /usr/lib/venc is "cannot open shared object file" in there, and
+# Steam Frame streaming then finds no Vulkan Video ("Rejecting driver 'venus' as it does not seem to support Vulkan
+# Video"). A copy in ~/.local/share/steamac/venc with its manifest in ~/.local/share/vulkan/implicit_layer.d is
+# found the same way inside and outside the container. The x86_64 layer (FEX's root) stays system-wide.
+set -eu
+src=/usr/lib/venc
+[ -f "$src/libVkLayer_steamac_venc.so" ] || { echo "venc-home: no layer in $src"; exit 0; }
+user=$(getent passwd 1000 | cut -d: -f1)
+home=$(getent passwd 1000 | cut -d: -f6)
+[ -n "$user" ] && [ -d "$home" ] || { echo "venc-home: no desktop user"; exit 0; }
+dst=$home/.local/share/steamac/venc
+man=$home/.local/share/vulkan/implicit_layer.d
+run() { runuser -u "$user" -- "$@"; }
+run mkdir -p "$dst" "$man"
+for f in libVkLayer_steamac_venc.so libvenc_backend_vt.so; do
+    cmp -s "$src/$f" "$dst/$f" || { run cp -f "$src/$f" "$dst/$f.new" && run mv -f "$dst/$f.new" "$dst/$f"; }
+done
+run tee "$man/VkLayer_steamac_venc.json.new" >/dev/null <<JSON
+{
+    "file_format_version": "1.2.0",
+    "layer": {
+        "name": "VK_LAYER_STEAMAC_video_encode",
+        "type": "GLOBAL",
+        "library_path": "$dst/libVkLayer_steamac_venc.so",
+        "api_version": "1.4.318",
+        "implementation_version": "1",
+        "description": "steamac: Vulkan Video encode (H.264/H.265) on Venus, encoded by the Mac (VideoToolbox)",
+        "disable_environment": { "STEAMAC_VENC_DISABLE": "1" }
+    }
+}
+JSON
+run mv -f "$man/VkLayer_steamac_venc.json.new" "$man/VkLayer_steamac_venc.json"
+echo "venc-home: layer for $user in $dst"

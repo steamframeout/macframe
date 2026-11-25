@@ -1,0 +1,14 @@
+# steamac: the Vulkan Video encode layer in the desktop user's home, where the Steam Linux Runtime (SteamVR's
+# container) can load it (see /usr/lib/steamac/venc-home).
+[Unit]
+Description=MacFrame: Steam Frame video encoder for SteamVR
+After=local-fs.target home.mount
+Before=display-manager.service getty.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/steamac/venc-home
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

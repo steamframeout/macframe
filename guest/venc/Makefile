@@ -57,11 +57,19 @@ $(OUT)/VkLayer_steamac_venc.json: | $(OUT)
 	  '        "description": "steamac: Vulkan Video encode (H.264/H.265) on Venus, encoded by the Mac (VideoToolbox)",' \
 	  '        "disable_environment": { "STEAMAC_VENC_DISABLE": "1" }' '    }' '}' > $@
 
+# IMPLICIT=0: no system-wide implicit layer manifest. SteamVR runs in the Steam Linux Runtime (pressure-vessel),
+# which cannot reach /usr/lib/venc ("/run/host/usr/lib/venc/...: cannot open shared object file"), so the native
+# layer is installed per user instead: /usr/lib/steamac/venc-home copies it into the home directory, which the
+# container shares, with its manifest in ~/.local/share/vulkan/implicit_layer.d.
+IMPLICIT ?= 1
 install: all
-	install -d $(DESTDIR)$(LIBDIR) $(DESTDIR)/usr/share/vulkan/implicit_layer.d
+	install -d $(DESTDIR)$(LIBDIR)
 	install -m 0755 $(OUT)/libVkLayer_steamac_venc.so $(OUT)/libvenc_backend_vt.so $(DESTDIR)$(LIBDIR)/
+ifeq ($(IMPLICIT),1)
+	install -d $(DESTDIR)/usr/share/vulkan/implicit_layer.d
 	install -m 0644 $(OUT)/VkLayer_steamac_venc.json \
 	  $(DESTDIR)/usr/share/vulkan/implicit_layer.d/VkLayer_steamac_venc.$(ARCH).json
+endif
 
 # ---- tests (x86_64 build box) ----------------------------------------------------------------------------------
 X26X ?= /usr
