@@ -318,6 +318,8 @@ jobs:
         run: |
           if [ "${{ steps.hostdeps.outputs.cache-hit }}" = true ]; then
             echo "Mac libraries reused (same inputs): launcher only"
+            # licenses.sh reads libkrun's crates from the default cargo home, which the reused build filled
+            cargo fetch --locked --manifest-path work/build/host-libkrun/src/Cargo.toml
             host/launcher/build.sh
           else
             ./build.sh host
