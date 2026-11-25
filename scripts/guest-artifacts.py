@@ -69,7 +69,11 @@ def stamp_path(kind, resources=None):
     return OUTPUTS[kind][0].with_name(OUTPUTS[kind][0].name + ".inputs.json")
 
 
+TRACE = []   # every record of the last digest, so a stale receipt can say which input differs
+
+
 def add_record(digest, *fields):
+    TRACE.append("|".join(str(f) for f in fields))
     for field in fields:
         data = os.fsencode(field)
         digest.update(len(data).to_bytes(8, "big"))
@@ -111,7 +115,16 @@ def hash_tree(digest, path, name):
         hash_entry(digest, path, name)
 
 
-def input_digest(kind):
+def input_digest(kind, trace=None):
+    """trace: a list that receives this kind's own records (nested checks keep theirs)"""
+    start = len(TRACE)
+    result = _input_digest(kind)
+    if trace is not None:
+        trace.extend(TRACE[start:])
+    return result
+
+
+def _input_digest(kind):
     paths = subprocess.check_output(
         ["git", "-C", str(ROOT), "ls-files", "-z", "--cached", "--others",
          "--exclude-standard", "--", *INPUTS[kind]]).split(b"\0")
@@ -166,7 +179,18 @@ def check(kind, resources=None):
         fail(kind, f"missing/invalid input stamp ({error})")
     if not isinstance(receipt, dict) or receipt.get("version") != 1 or receipt.get("kind") != kind:
         fail(kind, "invalid input stamp")
-    if receipt.get("inputs") != input_digest(kind):
+    trace = []
+    if receipt.get("inputs") != input_digest(kind, trace):
+        old = receipt.get("trace")
+        if isinstance(old, list):
+            gone = [r for r in old if r not in set(trace)]
+            new = [r for r in trace if r not in set(old)]
+            sys.stderr.write(f"guest artifacts: {kind}: inputs differing from the build's ({len(gone)} there, "
+                             f"{len(new)} here):\n")
+            for r in gone[:40]:
+                sys.stderr.write(f"  build: {r}\n")
+            for r in new[:40]:
+                sys.stderr.write(f"  here:  {r}\n")
         fail(kind, "stale source inputs")
     try:
         output = output_digest(kind, resources)
@@ -195,11 +219,12 @@ def main():
         if action == "begin":
             print(input_digest(kind))
     elif action == "finish":
-        inputs = input_digest(kind)
+        trace = []
+        inputs = input_digest(kind, trace)
         if inputs != sys.argv[3]:
             fail(kind, "inputs changed during build")
         receipt = {"version": 1, "kind": kind, "inputs": inputs,
-                   "output": output_digest(kind)}
+                   "output": output_digest(kind), "trace": trace}
         temporary = stamp.with_name(stamp.name + f".tmp.{os.getpid()}")
         try:
             temporary.write_text(json.dumps(receipt, sort_keys=True) + "\n")
